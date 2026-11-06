@@ -1,7 +1,7 @@
 /* 記賬 — Service Worker：離線可用。更新 App 檔案後，請把 VERSION 加一。 */
-const VERSION = 'jizhang-v5';
+const VERSION = 'jizhang-v6';
 const ASSETS = [
-  './', './index.html', './styles.css', './core.js', './app.js', './manifest.webmanifest',
+  './', './index.html', './styles.css', './core.js', './i18n.js', './app.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
 ];
 

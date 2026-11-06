@@ -8,12 +8,20 @@
   const $$ = s => Array.from(document.querySelectorAll(s));
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const DAY = 86400000;
-  const ACC_COLOR = { cash: 'var(--m-cash-exp)', alipay: 'var(--m-ali-exp)', change: 'var(--m-change)', jar: '#7a5bd6' };
+  const BUILTIN_COLOR = { cash: 'var(--m-cash-exp)', alipay: 'var(--m-ali-exp)', change: 'var(--m-change)', jar: '#7a5bd6' };
+  const accColor = id => BUILTIN_COLOR[id] || (C.ACC[id] && C.ACC[id].color) || '#7a7974';
+  const accShort = id => (C.ACC[id] && C.ACC[id].short) || NAME[id] || id;
   const WEEK = '日一二三四五六';
 
   /* ================= 資料 ================= */
   let state = load();
+  applyEnv();
   let comp = C.compute(state);
+  // 套用帳戶清單、貨幣（載入或匯入資料後呼叫）
+  function applyEnv() {
+    C.setAccounts(state.accounts);
+    C.setCurrency(state.settings.currency);
+  }
   const undoStack = [];
 
   function load() {
@@ -36,6 +44,7 @@
       settings: { ...d.settings, ...(s.settings || {}) },
       meta: { ...d.meta, ...(s.meta || {}) },
       txs: Array.isArray(s.txs) ? s.txs : [],
+      accounts: Array.isArray(s.accounts) ? s.accounts.filter(a => a && a.id && a.name) : [],
       seq: Number.isFinite(s.seq) ? s.seq : (Array.isArray(s.txs) ? s.txs.reduce((m, t) => Math.max(m, t.no || 0), 0) : 0),
     };
   }
@@ -174,8 +183,9 @@
     }
     const when = opt.withDate ? C.fmtDateTime(t.time).slice(5) : C.fmtTime(t.time);
     const sub = opt.acc ? '<small>餘額 ' + fmt(r.after[opt.acc]) + '</small>' : '';
-    return '<button class="tx" data-id="' + esc(t.id) + '"><span class="tx-ic ' + cls + '">' + ic + '</span>' +
-      '<span class="tx-main"><span class="tx-title">' + esc(title) + '</span><span class="tx-meta">' + when + ' · ' + esc(meta) + (t.note ? ' · ' + esc(t.note) : '') + '</span></span>' +
+    const icStyle = (t.type === 'expense' || t.type === 'income') && !BUILTIN_COLOR[t.account] ? ' style="background:' + accColor(t.account) + '"' : '';
+    return '<button class="tx" data-id="' + esc(t.id) + '"><span class="tx-ic ' + cls + '"' + icStyle + '>' + ic + '</span>' +
+      '<span class="tx-main"><span class="tx-title"' + (t.type === 'expense' || t.type === 'income' || t.type === 'transfer' ? ' data-notr' : '') + '>' + esc(title) + '</span><span class="tx-meta">' + when + ' · ' + esc(meta) + (t.note ? ' · ' + esc(t.note) : '') + '</span></span>' +
       '<span class="tx-amt ' + amtCls + '">' + amt + sub + '</span></button>';
   }
   document.addEventListener('click', e => {
@@ -215,7 +225,9 @@
     $('#h-expense').textContent = fmt(comp.expense);
     $('#h-accounts').innerHTML = C.ACCOUNTS.map(a => {
       const v = comp.balances[a.id];
-      return '<button class="acc" data-acc="' + a.id + '"><div class="an"><i class="dot" style="background:' + ACC_COLOR[a.id] + '"></i>' + esc(a.name) + '</div><div class="av' + (v < 0 ? ' negv' : '') + '">' + fmt(v) + '</div></button>';
+      const credit = a.kind === 'credit';
+      return '<button class="acc" data-acc="' + a.id + '"><div class="an"><i class="dot" style="background:' + accColor(a.id) + '"></i><span' + (a.builtin ? '' : ' data-notr') + '>' + esc(a.name) + '</span>' + (credit ? '<em class="acc-tag">信用卡</em>' : '') + '</div>' +
+        '<div class="av' + (v < 0 && !credit ? ' negv' : '') + '">' + fmt(v) + '</div>' + (credit && v < 0 ? '<div class="acc-sub">欠款 ' + fmt(-v) + '</div>' : '') + '</button>';
     }).join('');
     const t0 = C.startOfDay(now);
     const m0 = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
@@ -227,7 +239,7 @@
     jb.disabled = ch <= 0;
     jb.querySelector('span:last-child').textContent = ch > 0 ? '零錢 ' + fmt(ch) + ' 轉入零錢筒' : '將零錢全部轉入零錢筒（沒有零錢）';
     const scs = state.settings.shortcuts;
-    $('#h-shortcuts').innerHTML = scs.map(sc => '<button class="sc-btn' + scCls(sc) + '" data-sc="' + esc(sc.id) + '"><b>' + esc(sc.name) + '</b><small>' + (sc.account === 'alipay' ? 'Alipay' : '現金') + (sc.type === 'income' ? '收入' : '') + '</small>' + (sc.amount > 0 ? '<small>' + shortAmt(sc.amount) + '</small>' : '') + '</button>').join('') +
+    $('#h-shortcuts').innerHTML = scs.map(sc => '<button class="sc-btn' + scCls(sc) + '" data-sc="' + esc(sc.id) + '"><b' + scNotr(sc) + '>' + esc(sc.name) + '</b><small>' + esc(accShort(sc.account)) + (sc.type === 'income' ? '收入' : '') + '</small>' + (sc.amount > 0 ? '<small>' + shortAmt(sc.amount) + '</small>' : '') + '</button>').join('') +
       '<button class="sc-btn add" data-sc-new><b>＋</b><small>新增捷徑</small></button>';
     const recent = comp.rows.slice(-6).reverse();
     $('#h-recent').innerHTML = recent.length ? recent.map(r => txRowHtml(r, { withDate: true })).join('') : '<div class="empty">尚未有紀錄。試試輸入「早餐25」。</div>';
@@ -249,15 +261,19 @@
   });
 
   /* ---------- 常用捷徑 ---------- */
-  function scCls(sc) { return (sc.type === 'income' ? ' inc' : '') + (sc.account === 'alipay' ? ' ali' : ''); }
+  // 預設捷徑（未改名）可跟隨介面語言翻譯；使用者自訂的名稱不翻譯
+  function scNotr(sc) { const d = C.DEFAULT_SHORTCUTS.find(x => x.id === sc.id); return d && d.name === sc.name ? '' : ' data-notr'; }
+  function scCls(sc) { return (sc.type === 'income' ? ' inc' : '') + (sc.account !== 'cash' && sc.type !== 'income' ? ' ali' : ''); }
   function scMeta(sc) {
-    const acc = sc.account === 'alipay' ? 'Alipay' : '現金';
+    const acc = accShort(sc.account);
     return (sc.type === 'income' ? acc + '收入' : acc) + (sc.amount > 0 ? ' · ' + shortAmt(sc.amount) : '');
   }
-  function shortAmt(c) { return c % 100 === 0 ? '$' + (c / 100).toLocaleString('en-US') : fmt(c).replace('HK', ''); }
+  function shortAmt(c) { return fmt(c).replace(/\.00$/, ''); }
   function applyShortcut(id) {
-    const sc = state.settings.shortcuts.find(s => s.id === id);
-    if (!sc) return;
+    const sc0 = state.settings.shortcuts.find(s => s.id === id);
+    if (!sc0) return;
+    // 捷徑所用的付款方式已被刪除時，改用現金
+    const sc = C.ACC[sc0.account] ? sc0 : { ...sc0, account: 'cash' };
     // 有金額 + 已開啟「直接記賬」→ 一按即記
     if (state.settings.shortcutDirect && sc.amount > 0) {
       const f = sc.type === 'income'
@@ -283,7 +299,7 @@
       '<form class="form" id="sc-f" autocomplete="off">' +
       '<div><label class="field-label">名稱（即記賬項目）</label><input class="input" name="name" maxlength="20" placeholder="例如：午餐、買水、薪金" value="' + esc(cur.name) + '"></div>' +
       '<div><label class="field-label">類型</label>' + seg('type', [['expense', '支出'], ['income', '收入']], cur.type) + '</div>' +
-      '<div><label class="field-label">帳戶</label>' + seg('account', [['cash', '現金'], ['alipay', 'Alipay（支付寶）']], cur.account) + '</div>' +
+      '<div><label class="field-label">帳戶／付款方式</label><select class="input" name="account">' + accOptions(C.ACC[cur.account] ? cur.account : 'cash', C.payable().map(a => a.id)) + '</select></div>' +
       '<div><label class="field-label">預設金額（可留空，留空則每次自行輸入）</label><input class="input" name="amount" inputmode="decimal" placeholder="例如 35" value="' + (cur.amount > 0 ? C.plain(cur.amount) : '') + '"></div>' +
       '<div class="form-actions">' + (sc ? '<button type="button" class="btn danger" id="sc-del">刪除</button>' : '<button type="button" class="btn" data-close>取消</button>') + '<button type="submit" class="btn primary">儲存</button></div></form>',
       body => {
@@ -308,7 +324,7 @@
           const s = f.amount.value.trim();
           const amount = s === '' ? 0 : C.toCents(s);
           if (Number.isNaN(amount) || amount < 0) { alert('金額格式不正確'); return; }
-          const data = { name, type: segVal('type'), account: segVal('account'), amount };
+          const data = { name, type: segVal('type'), account: f.account.value, amount };
           if (sc) Object.assign(sc, data);
           else list.push({ id: 'sc-' + uid(), ...data });
           save(); closeSheet(); render();
@@ -366,22 +382,33 @@
   let quickSig = '';
   function renderQuickGrid() {
     const qa = state.settings.quickAmounts;
-    const sig = qa.join(',');
+    const sig = qa.join(',') + C.cur();
     if (sig === quickSig) return;
     quickSig = sig;
-    $('#quick-grid').innerHTML = qa.map(c => '<button class="qbtn" data-c="' + c + '"><small>HK$</small>' + (c % 100 === 0 ? c / 100 : C.plain(c)) + '</button>').join('');
+    $('#quick-grid').innerHTML = qa.map(c => '<button class="qbtn" data-c="' + c + '"><small>' + esc(C.cur()) + '</small>' + (c % 100 === 0 ? c / 100 : C.plain(c)) + '</button>').join('');
   }
   function modeInfo() {
-    const ali = qe.account === 'alipay';
-    if (qe.income) return ali ? { cls: 'm-ali-inc', text: 'Alipay（支付寶）收入', icon: '＋' } : { cls: 'm-cash-inc', text: '現金收入', icon: '＋' };
-    return ali ? { cls: 'm-ali-exp', text: 'Alipay（支付寶）支出', icon: '−' } : { cls: 'm-cash-exp', text: '現金支出', icon: '−' };
+    if (!C.ACC[qe.account]) qe.account = 'cash';
+    const acc = qe.account;
+    const kind = qe.income ? '收入' : '支出';
+    const icon = qe.income ? '＋' : '−';
+    if (acc === 'cash') return { cls: qe.income ? 'm-cash-inc' : 'm-cash-exp', text: '現金' + kind, icon };
+    if (acc === 'alipay') return { cls: qe.income ? 'm-ali-inc' : 'm-ali-exp', text: 'Alipay（支付寶）' + kind, icon };
+    return { cls: 'm-custom', color: accColor(acc), text: NAME[acc] + kind, icon };
   }
   function renderEntry(updateInputs) {
     renderQuickGrid();
     const m = modeInfo();
     const root = $('#view-entry');
-    root.classList.remove('m-cash-exp', 'm-ali-exp', 'm-cash-inc', 'm-ali-inc');
+    root.classList.remove('m-cash-exp', 'm-ali-exp', 'm-cash-inc', 'm-ali-inc', 'm-custom');
     root.classList.add(m.cls);
+    root.style.setProperty('--mc', m.color || '');
+    if (!m.color) root.style.removeProperty('--mc');
+    // 付款方式選擇（有自訂付款方式時才顯示）
+    const pay = C.payable();
+    const accRow = $('#e-accounts');
+    accRow.hidden = pay.length <= 2;
+    accRow.innerHTML = pay.map(a => '<button class="chip acc-chip' + (a.id === qe.account ? ' on' : '') + '" data-pay="' + a.id + '" style="--ac:' + accColor(a.id) + '"><i class="dot" style="background:' + accColor(a.id) + '"></i><span' + (a.builtin ? '' : ' data-notr') + '>' + esc(a.short) + '</span></button>').join('');
     const bal = comp.balances;
     let sub = '餘額 ' + fmt(bal[qe.account]);
     if (qe.changeOn && !qe.income) sub += '<br>零錢 ' + fmt(bal.change);
@@ -393,7 +420,7 @@
     $('#sp-plus').disabled = qe.income;
     $('#sp-inc').setAttribute('aria-pressed', qe.income);
 
-    $('#amt-main-label').textContent = qe.income ? '收入金額' : (qe.account === 'alipay' ? 'Alipay' : '現金');
+    $('#amt-main-label').textContent = qe.income ? '收入金額' : accShort(qe.account);
     const showChange = qe.changeOn && !qe.income;
     $('#amt-change-row').hidden = !showChange;
     $('#amt-main-row').classList.toggle('active', !showChange || qe.active === 'main');
@@ -406,14 +433,14 @@
     const total = qe.main + change;
     let tot;
     if (qe.income) tot = '收入 <b>' + fmt(qe.main) + '</b>';
-    else if (showChange) tot = (qe.account === 'alipay' ? 'Alipay' : '現金') + ' ' + fmt(qe.main) + ' ＋ 零錢 ' + fmt(qe.change) + '　總支出 <b>' + fmt(total) + '</b>';
+    else if (showChange) tot = esc(accShort(qe.account)) + ' ' + fmt(qe.main) + ' ＋ 零錢 ' + fmt(qe.change) + '　總支出 <b>' + fmt(total) + '</b>';
     else tot = '總支出 <b>' + fmt(total) + '</b>';
     $('#amt-total').innerHTML = tot;
 
     const hint = $('#amt-hint');
     hint.className = 'amt-hint'; hint.textContent = '';
     if (!qe.income && change > bal.change) { hint.className = 'amt-hint err'; hint.textContent = '⚠ 零錢不足（目前 ' + fmt(bal.change) + '），不可透支'; }
-    else if (!qe.income && qe.main > bal[qe.account]) { hint.className = 'amt-hint warn'; hint.textContent = '⚠ ' + NAME[qe.account] + '餘額不足（目前 ' + fmt(bal[qe.account]) + '）'; }
+    else if (!qe.income && qe.main > bal[qe.account] && C.ACC[qe.account].kind !== 'credit') { hint.className = 'amt-hint warn'; hint.textContent = '⚠ ' + NAME[qe.account] + '餘額不足（目前 ' + fmt(bal[qe.account]) + '）'; }
     else if (showChange && qe.active === 'change') { hint.textContent = '正在輸入零錢金額，再按「＋」可取消零錢'; hint.className = 'amt-hint warn'; }
 
     const btn = $('#e-submit');
@@ -421,7 +448,7 @@
     btn.disabled = total <= 0;
 
     // 常用捷徑
-    $('#e-shortcuts').innerHTML = state.settings.shortcuts.map(sc => '<button class="chip sc-chip' + scCls(sc) + '" data-sc="' + esc(sc.id) + '">' + (sc.type === 'income' ? '＋' : '') + esc(sc.name) + (sc.amount > 0 ? '<span class="sc-amt">' + shortAmt(sc.amount) + '</span>' : '') + '</button>').join('') +
+    $('#e-shortcuts').innerHTML = state.settings.shortcuts.map(sc => '<button class="chip sc-chip' + scCls(sc) + '" data-sc="' + esc(sc.id) + '">' + (sc.type === 'income' ? '＋' : '') + '<span' + scNotr(sc) + '>' + esc(sc.name) + '</span>' + (sc.amount > 0 ? '<span class="sc-amt">' + shortAmt(sc.amount) + '</span>' : '') + '</button>').join('') +
       '<button class="chip sc-chip add" data-sc-new>＋ 新增</button>';
 
     // 常用項目
@@ -429,7 +456,7 @@
     for (const t of state.txs.slice(-300)) if (t.type === 'expense' && t.item) freq[t.item] = (freq[t.item] || 0) + 1;
     const scNames = new Set(state.settings.shortcuts.map(s => s.name));
     const top = Object.keys(freq).filter(k => !scNames.has(k)).sort((a, b) => freq[b] - freq[a]).slice(0, 10);
-    $('#e-recent').innerHTML = qe.income ? '' : top.map(s => '<button class="chip" data-item="' + esc(s) + '">' + esc(s) + '</button>').join('');
+    $('#e-recent').innerHTML = qe.income ? '' : top.map(s => '<button class="chip" data-notr data-item="' + esc(s) + '">' + esc(s) + '</button>').join('');
   }
   $('#quick-grid').addEventListener('click', e => {
     const b = e.target.closest('[data-c]');
@@ -440,6 +467,10 @@
     renderEntry(true);
   });
   $('#sp-a').addEventListener('click', () => { qe.account = qe.account === 'alipay' ? 'cash' : 'alipay'; renderEntry(false); });
+  $('#e-accounts').addEventListener('click', e => {
+    const b = e.target.closest('[data-pay]');
+    if (b) { qe.account = b.dataset.pay; renderEntry(false); }
+  });
   $('#sp-plus').addEventListener('click', () => {
     if (qe.income) return;
     if (!qe.changeOn) { qe.changeOn = true; qe.active = 'change'; }
@@ -509,31 +540,43 @@
 
   /* ================= 調整餘額 ================= */
   function accOptions(sel, list) {
-    return (list || C.ACC_IDS).map(id => '<option value="' + id + '"' + (id === sel ? ' selected' : '') + '>' + esc(NAME[id]) + '</option>').join('');
+    return (list || C.ACC_IDS).map(id => '<option value="' + id + '"' + (id === sel ? ' selected' : '') + (C.ACC[id] && !C.ACC[id].builtin ? ' data-notr' : '') + '>' + esc(NAME[id]) + '</option>').join('');
+  }
+  const payIds = () => C.payable().map(a => a.id);
+  // 可輸入負數的金額（信用卡欠款、初始餘額）
+  function sCents(s) {
+    s = String(s == null ? '' : s).trim();
+    const neg = /^[-−]/.test(s);
+    const v = C.toCents(s.replace(/^[-−]\s*/, ''));
+    return neg ? -v : v;
   }
   function openAdjust(acc) {
     openSheet('調整帳戶餘額',
       '<div class="form">' +
       '<div><label class="field-label">帳戶</label><select class="input" id="adj-acc">' + accOptions(acc) + '</select></div>' +
       '<dl class="kv"><dt>目前餘額</dt><dd id="adj-cur"></dd></dl>' +
-      '<div><label class="field-label">設定為（HK$）</label><input class="input" id="adj-val" inputmode="decimal" autocomplete="off" placeholder="0.00"></div>' +
+      '<div><label class="field-label" id="adj-lbl"></label><input class="input" id="adj-val" inputmode="decimal" autocomplete="off" placeholder="0.00"></div>' +
       '<div class="notice warn" id="adj-diff">輸入新的餘額</div>' +
       '<div><label class="field-label">備註</label><input class="input" id="adj-note" placeholder="例如：核對錢包" autocomplete="off"></div>' +
       '<div class="label">調整不會計入累計收入或支出，會另外記錄調整金額，方便資產核對。</div>' +
       '<div class="form-actions"><button class="btn" data-close>取消</button><button class="btn primary" id="adj-ok">確認調整</button></div></div>',
       body => {
         const accEl = body.querySelector('#adj-acc'), val = body.querySelector('#adj-val'), diff = body.querySelector('#adj-diff');
+        // 信用卡：輸入「欠款」正數，內部以負數保存
+        const isCredit = () => C.ACC[accEl.value] && C.ACC[accEl.value].kind === 'credit';
+        const readV = () => { const v = sCents(val.value); return isCredit() ? -v : v; };
         const upd = () => {
           const cur = comp.balances[accEl.value];
+          body.querySelector('#adj-lbl').textContent = isCredit() ? '目前欠款（' + C.cur() + '，輸入正數）' : '設定為（' + C.cur() + '）';
           body.querySelector('#adj-cur').textContent = fmt(cur);
-          const v = C.toCents(val.value);
+          const v = readV();
           if (val.value.trim() === '') { diff.textContent = '輸入新的餘額'; diff.className = 'notice warn'; }
           else if (Number.isNaN(v)) { diff.textContent = '金額格式不正確'; diff.className = 'notice err'; }
           else { diff.textContent = fmt(cur) + ' → ' + fmt(v) + '（調整金額 ' + fmt(v - cur, { sign: true }) + '）'; diff.className = 'notice ok'; }
         };
         accEl.addEventListener('change', upd); val.addEventListener('input', upd); upd();
         body.querySelector('#adj-ok').addEventListener('click', () => {
-          const v = C.toCents(val.value);
+          const v = readV();
           if (Number.isNaN(v) || val.value.trim() === '') { val.focus(); return; }
           if (v === comp.balances[accEl.value]) { toast('餘額沒有變化'); return; }
           if (addTx({ type: 'adjust', account: accEl.value, target: v, item: '餘額調整', note: body.querySelector('#adj-note').value.trim() })) closeSheet();
@@ -547,7 +590,7 @@
       '<div class="form">' +
       '<div class="row2"><div><label class="field-label">轉出</label><select class="input" id="tf-from">' + accOptions('cash') + '</select></div>' +
       '<div><label class="field-label">轉入</label><select class="input" id="tf-to">' + accOptions('change') + '</select></div></div>' +
-      '<div><label class="field-label">金額（HK$）</label><input class="input" id="tf-amt" inputmode="decimal" autocomplete="off" placeholder="0.00"></div>' +
+      '<div><label class="field-label">金額（' + esc(C.cur()) + '）</label><input class="input" id="tf-amt" inputmode="decimal" autocomplete="off" placeholder="0.00"></div>' +
       '<div class="label" id="tf-info"></div>' +
       '<div><label class="field-label">備註</label><input class="input" id="tf-note" autocomplete="off"></div>' +
       '<div class="notice ok">帳戶間轉帳不計入收入或支出，總資產不變。</div>' +
@@ -621,10 +664,10 @@
       '<div class="row2"><div><label class="field-label">類型</label><select class="input" name="type">' + typeOpts + '</select></div>' +
       '<div><label class="field-label">日期時間</label><input class="input" type="datetime-local" name="time" value="' + toLocalInput(t.time) + '"></div></div>' +
       '<div data-g="expense income transfer"><label class="field-label">項目</label><input class="input" name="item" value="' + esc(t.item) + '"></div>' +
-      '<div data-g="expense" class="row2"><div><label class="field-label">支付帳戶</label><select class="input" name="eacc">' + accOptions(t.type === 'expense' ? t.account : 'cash', ['cash', 'alipay']) + '</select></div>' +
+      '<div data-g="expense" class="row2"><div><label class="field-label">支付帳戶</label><select class="input" name="eacc">' + accOptions(t.type === 'expense' ? t.account : 'cash', payIds()) + '</select></div>' +
       '<div><label class="field-label">金額</label><input class="input" name="eamt" inputmode="decimal" value="' + v(t.type === 'expense' ? t.amount : 0) + '"></div></div>' +
       '<div data-g="expense"><label class="field-label">零錢支付金額（可留空）</label><input class="input" name="echange" inputmode="decimal" value="' + v(t.type === 'expense' ? t.change : 0) + '"></div>' +
-      '<div data-g="income" class="row2"><div><label class="field-label">收入帳戶</label><select class="input" name="iacc">' + accOptions(t.type === 'income' ? t.account : 'cash', ['cash', 'alipay']) + '</select></div>' +
+      '<div data-g="income" class="row2"><div><label class="field-label">收入帳戶</label><select class="input" name="iacc">' + accOptions(t.type === 'income' ? t.account : 'cash', payIds()) + '</select></div>' +
       '<div><label class="field-label">金額</label><input class="input" name="iamt" inputmode="decimal" value="' + v(t.type === 'income' ? t.amount : 0) + '"></div></div>' +
       '<div data-g="transfer" class="row2"><div><label class="field-label">轉出</label><select class="input" name="tfrom">' + accOptions(t.type === 'transfer' ? t.from : 'change') + '</select></div>' +
       '<div><label class="field-label">轉入</label><select class="input" name="tto">' + accOptions(t.type === 'transfer' ? t.to : 'jar') + '</select></div></div>' +
@@ -702,6 +745,9 @@
     }
   }
   function renderRecords() {
+    if (rf.acc && !C.ACC[rf.acc]) rf.acc = '';
+    $('#r-acc').innerHTML = '<option value="">全部帳戶</option>' + accOptions(rf.acc);
+    $('#r-acc').value = rf.acc;
     $$('#r-range button').forEach(b => b.classList.toggle('on', b.dataset.r === rf.range));
     $('#r-custom').hidden = rf.range !== 'custom';
     $('#r-undo').disabled = !undoStack.length;
@@ -855,7 +901,7 @@
       '<div class="card"><div class="card-title" id="c1-title"></div><div id="c1"></div><details class="tbl"><summary>以表格顯示</summary><div id="c1-tbl"></div></details></div>' +
       '<div class="card"><div class="card-title">收入與支出（按月）</div><div class="legend"><span><i style="background:var(--series-inc)"></i>收入</span><span><i style="background:var(--series-exp)"></i>支出</span></div><div id="c2"></div><details class="tbl"><summary>以表格顯示</summary><div id="c2-tbl"></div></details></div>' +
       '</div><div>' +
-      '<div class="card"><div class="card-title">支出分類（按項目）</div>' + (catList.length ? catList.map(([k, v]) => '<div class="cat-row"><span class="cat-name">' + esc(k) + '</span><span><div class="cat-bar" style="width:' + Math.max(1, v / catMax * 100) + '%"></div></span><span class="cat-val">' + fmt(v) + '<small>' + Math.round(v / st.expense * 100) + '%</small></span></div>').join('') : '<div class="empty">此期間沒有支出</div>') + '</div>' +
+      '<div class="card"><div class="card-title">支出分類（按項目）</div>' + (catList.length ? catList.map(([k, v]) => '<div class="cat-row"><span class="cat-name" data-notr>' + esc(k) + '</span><span><div class="cat-bar" style="width:' + Math.max(1, v / catMax * 100) + '%"></div></span><span class="cat-val">' + fmt(v) + '<small>' + Math.round(v / st.expense * 100) + '%</small></span></div>').join('') : '<div class="empty">此期間沒有支出</div>') + '</div>' +
       '<div class="card"><div class="card-title">各帳戶資金變化</div>' + accTbl + '</div>' +
       '<div class="card"><div class="card-title">資產核對（全部紀錄）</div>' + recon + '</div>' +
       '</div></div>';
@@ -937,7 +983,7 @@
       '</div></div>' +
       '<div class="set-section" id="set-sc"><h3>常用捷徑（支出／收入）</h3><div class="card">' +
       (s.shortcuts.length ? '' : '<div class="empty">尚未設定捷徑</div>') +
-      s.shortcuts.map((sc, i) => '<div class="qa-item"><button class="sc-row" data-sc-edit="' + esc(sc.id) + '"><span class="sc-tag ' + (sc.type === 'income' ? 'inc' : 'exp') + '">' + (sc.type === 'income' ? '收入' : '支出') + '</span><b>' + esc(sc.name) + '</b><small>' + esc(scMeta(sc)) + '</small></button>' +
+      s.shortcuts.map((sc, i) => '<div class="qa-item"><button class="sc-row" data-sc-edit="' + esc(sc.id) + '"><span class="sc-tag ' + (sc.type === 'income' ? 'inc' : 'exp') + '">' + (sc.type === 'income' ? '收入' : '支出') + '</span><b' + scNotr(sc) + '>' + esc(sc.name) + '</b><small>' + esc(scMeta(sc)) + '</small></button>' +
         '<button class="icon-btn" data-sc-up="' + i + '"' + (i === 0 ? ' disabled' : '') + ' aria-label="上移">↑</button>' +
         '<button class="icon-btn" data-sc-down="' + i + '"' + (i === s.shortcuts.length - 1 ? ' disabled' : '') + ' aria-label="下移">↓</button>' +
         '<button class="icon-btn del" data-sc-del="' + i + '" aria-label="刪除">✕</button></div>').join('') +
@@ -951,6 +997,12 @@
       '</div></div>' +
       '<div class="set-section"><h3>外觀</h3><div class="card"><div class="set-row"><span>深色／淺色模式</span><div class="seg" id="set-theme">' +
       [['auto', '自動'], ['light', '淺色'], ['dark', '深色']].map(([k, n]) => '<button data-theme="' + k + '" class="' + (s.theme === k ? 'on' : '') + '">' + n + '</button>').join('') + '</div></div></div></div>' +
+      '<div class="set-section"><h3>語言及貨幣</h3><div class="card">' +
+      '<div class="set-row"><span class="sr-l">語言 / Language</span><div class="seg" id="set-lang">' +
+      [['zh-Hant', '繁體'], ['zh-Hans', '简体'], ['en', 'English']].map(([k, n]) => '<button data-lang="' + k + '" data-notr class="' + (s.lang === k ? 'on' : '') + '">' + n + '</button>').join('') + '</div></div>' +
+      '<div class="set-row"><span class="sr-l">貨幣<div class="sr-d">只改變顯示的貨幣符號，不會換算金額</div></span><select class="input" id="set-cur" style="width:auto">' +
+      C.CURRENCIES.map(c => '<option value="' + c.code + '"' + (c.code === s.currency ? ' selected' : '') + '>' + c.sym + ' ' + c.name + '</option>').join('') + '</select></div>' +
+      '</div></div>' +
       '</div><div class="col">' +
       '<div class="set-section"><h3>資料備份及恢復</h3><div class="card">' +
       '<div class="btn-col"><button class="btn primary" id="ex-json">匯出 JSON 備份（可用於恢復）</button><button class="btn" id="ex-csv">匯出 CSV（Excel／Numbers）</button><button class="btn" id="im-json">從 JSON 備份匯入及恢復</button></div>' +
@@ -958,8 +1010,16 @@
       '<div class="set-row"><span class="sr-l">上次匯出備份</span><span class="label">' + (state.meta.lastExport ? C.fmtDateTime(state.meta.lastExport) : '從未') + '</span></div>' +
       '<div class="set-row"><span class="sr-l">持久儲存<div class="sr-d">資料保存在本機（此瀏覽器／主畫面 App）</div></span><span class="label">' + (persisted === true ? '✓ 已啟用' : persisted === false ? '未獲授權' : '—') + '</span></div>' +
       '</div></div>' +
+      '<div class="set-section" id="set-acc"><h3>付款方式／帳戶</h3><div class="card">' +
+      C.ACCOUNTS.map(a => a.builtin
+        ? '<div class="set-row"><span class="sr-l"><i class="dot" style="background:' + accColor(a.id) + '"></i> ' + esc(a.name) + '</span><span class="label">內建</span></div>'
+        : '<div class="qa-item"><button class="sc-row" data-acc-edit="' + esc(a.id) + '"><i class="dot" style="background:' + accColor(a.id) + '"></i><b data-notr>' + esc(a.name) + '</b><small>' + (a.kind === 'credit' ? '信用卡' : '一般帳戶') + ' · ' + fmt(comp.balances[a.id] || 0) + '</small></button>' +
+          '<button class="icon-btn del" data-acc-del="' + esc(a.id) + '" aria-label="刪除">✕</button></div>').join('') +
+      '<div class="btn-col" style="margin-top:10px"><button class="btn primary" data-acc-new>＋ 新增付款方式</button></div>' +
+      '<div class="sr-d" style="margin-top:8px">例如：信用卡、八達通、銀行卡、微信支付、PayMe。內建的四個帳戶不會受影響。</div>' +
+      '</div></div>' +
       '<div class="set-section"><h3>初始餘額</h3><div class="card">' +
-      C.ACCOUNTS.map(a => '<div class="set-row"><span>' + esc(a.name) + '</span><span>' + fmt(state.initial[a.id]) + '</span></div>').join('') +
+      C.ACCOUNTS.map(a => '<div class="set-row"><span' + (a.builtin ? '' : ' data-notr') + '>' + esc(a.name) + '</span><span>' + fmt(state.initial[a.id] || 0) + '</span></div>').join('') +
       '<div class="set-row"><span><b>初始總資產</b></span><b>' + fmt(comp.initialTotal) + '</b></div>' +
       '<button class="btn" id="init-edit" style="width:100%;margin-top:6px">修改初始餘額</button></div></div>' +
       '<div class="set-section"><h3>其他</h3><div class="card">' +
@@ -999,6 +1059,10 @@
     else if (b.id === 'qa-reset') { if (confirm('恢復預設快捷金額？')) { setQuick([...C.DEFAULT_QUICK]); toast('已恢復預設'); } }
     else if (b.dataset.mode) { state.settings.inputMode = b.dataset.mode; save(); renderSettings(); }
     else if (b.dataset.theme) { state.settings.theme = b.dataset.theme; save(); applyTheme(); renderSettings(); }
+    else if (b.dataset.lang) { if (b.dataset.lang !== state.settings.lang) { state.settings.lang = b.dataset.lang; save(); location.reload(); } }
+    else if (b.dataset.accEdit) openAccountEdit(b.dataset.accEdit);
+    else if (b.dataset.accNew !== undefined) openAccountEdit(null);
+    else if (b.dataset.accDel) deleteAccount(b.dataset.accDel);
     else if (b.id === 'ex-json') exportJSON();
     else if (b.id === 'ex-csv') exportCSV();
     else if (b.id === 'im-json') $('#im-file').click();
@@ -1017,20 +1081,101 @@
       if (!(v > 0)) { toast('請輸入正確金額'); el.value = C.plain(qa[+el.dataset.qi]); return; }
       qa[+el.dataset.qi] = v; setQuick(qa); toast('已更新快捷金額');
     } else if (el.id === 'set-reset') { state.settings.resetAfter = el.checked; save(); }
+    else if (el.id === 'set-cur') { state.settings.currency = el.value; save(); applyEnv(); quickSig = ''; refresh(); toast('已更改貨幣符號'); }
     else if (el.id === 'set-scdirect') { state.settings.shortcutDirect = el.checked; save(); }
     else if (el.id === 'im-file') { importFile(el.files[0]); el.value = ''; }
   });
   $('#set-body').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'qa-new') { e.preventDefault(); $('#qa-add').click(); } });
 
+  /* ---------- 自訂付款方式 ---------- */
+  function openAccountEdit(id) {
+    const a = id ? state.accounts.find(x => x.id === id) : null;
+    const cur = a || { name: '', kind: 'asset', color: C.PALETTE[state.accounts.length % C.PALETTE.length] };
+    const bal = a ? (comp.balances[a.id] || 0) : 0;
+    openSheet(a ? '編輯付款方式' : '新增付款方式',
+      '<form class="form" id="acc-f" autocomplete="off">' +
+      '<div><label class="field-label">名稱</label><input class="input" name="name" maxlength="16" placeholder="例如：八達通、信用卡、銀行卡" value="' + esc(cur.name) + '"></div>' +
+      (a ? '' : '<div class="chips" style="margin:0">' + ['八達通', '信用卡', '銀行卡', '微信支付', 'PayMe', '轉數快'].map(n => '<button type="button" class="chip" data-preset="' + n + '">' + n + '</button>').join('') + '</div>') +
+      '<div><label class="field-label">類型</label><div class="seg" data-seg="kind"><button type="button" data-v="asset" class="' + (cur.kind !== 'credit' ? 'on' : '') + '">一般帳戶</button><button type="button" data-v="credit" class="' + (cur.kind === 'credit' ? 'on' : '') + '">信用卡</button></div></div>' +
+      '<div class="sr-d" id="acc-kind-d"></div>' +
+      '<div><label class="field-label">顏色</label><div class="color-row">' + C.PALETTE.map(c => '<button type="button" class="color-dot' + (c === cur.color ? ' on' : '') + '" data-color="' + c + '" style="background:' + c + '" aria-label="' + c + '"></button>').join('') + '</div></div>' +
+      (a ? '<dl class="kv"><dt>目前餘額</dt><dd>' + fmt(bal) + '</dd></dl><div class="sr-d">要修改餘額，請使用「調整帳戶餘額」。</div>'
+        : '<div><label class="field-label" id="acc-bal-l">目前餘額（可留空）</label><input class="input" name="bal" inputmode="decimal" placeholder="0.00"></div>') +
+      '<div class="form-actions"><button type="button" class="btn" data-close>取消</button><button type="submit" class="btn primary">儲存</button></div></form>',
+      body => {
+        const f = body.querySelector('#acc-f');
+        let kind = cur.kind === 'credit' ? 'credit' : 'asset', color = cur.color;
+        const setKind = k => {
+          kind = k;
+          body.querySelectorAll('[data-seg="kind"] button').forEach(x => x.classList.toggle('on', x.dataset.v === k));
+          body.querySelector('#acc-kind-d').textContent = k === 'credit'
+            ? '信用卡消費會增加欠款（餘額顯示為負數）；還款時用「帳戶間轉帳」由其他帳戶轉入。'
+            : '一般帳戶：例如八達通、銀行卡，消費時扣減餘額。';
+          const l = body.querySelector('#acc-bal-l');
+          if (l) l.textContent = k === 'credit' ? '目前欠款（可留空，輸入正數）' : '目前餘額（可留空）';
+        };
+        setKind(kind);
+        body.querySelector('[data-seg="kind"]').addEventListener('click', e => {
+          const b = e.target.closest('[data-v]');
+          if (b) setKind(b.dataset.v);
+        });
+        body.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => {
+          f.name.value = b.dataset.preset;
+          setKind(b.dataset.preset === '信用卡' ? 'credit' : 'asset');
+        }));
+        body.querySelectorAll('[data-color]').forEach(b => b.addEventListener('click', () => {
+          color = b.dataset.color;
+          body.querySelectorAll('[data-color]').forEach(x => x.classList.toggle('on', x === b));
+        }));
+        f.addEventListener('submit', e => {
+          e.preventDefault();
+          const name = f.name.value.trim();
+          if (!name) { f.name.focus(); return; }
+          const reserved = ['A', 'a', '支付寶', 'Alipay', '現金', '零錢', '零錢筒'];
+          const clash = reserved.includes(name) || C.ACCOUNTS.some(x => x.id !== (a && a.id) && (x.name === name || x.short === name));
+          if (clash) { alert('已有同名的付款方式，請用其他名稱。'); return; }
+          if (a) {
+            Object.assign(a, { name, kind, color });
+            save(); applyEnv(); closeSheet(); refresh(); toast('已更新付款方式');
+            return;
+          }
+          let b0 = 0;
+          if (f.bal && f.bal.value.trim() !== '') {
+            b0 = sCents(f.bal.value);
+            if (Number.isNaN(b0)) { alert('金額格式不正確'); return; }
+            if (kind === 'credit') b0 = -Math.abs(b0);
+          }
+          const nid = 'acc-' + uid();
+          state.accounts.push({ id: nid, name, kind, color });
+          // 新帳戶的起始金額記作它的初始餘額，不影響其他帳戶及累計收支
+          state.initial[nid] = b0;
+          save(); applyEnv(); closeSheet(); refresh(); toast('已新增付款方式「' + name + '」');
+        });
+      });
+  }
+  function deleteAccount(id) {
+    const a = state.accounts.find(x => x.id === id);
+    if (!a) return;
+    const used = state.txs.filter(t => C.involves(t, id)).length;
+    if (used) { alert('「' + a.name + '」已有 ' + used + ' 筆交易紀錄，不能刪除。\n如不再使用，可以先把相關交易刪除或改用其他帳戶。'); return; }
+    const b = state.initial[id] || 0;
+    if (!confirm('刪除付款方式「' + a.name + '」？' + (b ? '\n它目前的金額 ' + fmt(b) + ' 會從總資產中移除。' : ''))) return;
+    state.accounts = state.accounts.filter(x => x.id !== id);
+    delete state.initial[id];
+    state.settings.shortcuts.forEach(sc => { if (sc.account === id) sc.account = 'cash'; });
+    if (qe.account === id) qe.account = 'cash';
+    save(); applyEnv(); refresh(); toast('已刪除付款方式');
+  }
+
   function openInitial() {
     openSheet('修改初始餘額',
-      '<form class="form" id="init-f">' + C.ACCOUNTS.map(a => '<div><label class="field-label">' + esc(a.name) + '</label><input class="input" name="' + a.id + '" inputmode="decimal" value="' + C.plain(state.initial[a.id]) + '"></div>').join('') +
+      '<form class="form" id="init-f">' + C.ACCOUNTS.map(a => { const cr = a.kind === 'credit'; const v = state.initial[a.id] || 0; return '<div><label class="field-label"><span' + (a.builtin ? '' : ' data-notr') + '>' + esc(a.name) + '</span>' + (cr ? '（欠款，輸入正數）' : '') + '</label><input class="input" name="' + a.id + '" inputmode="decimal" value="' + C.plain(cr ? -v : v) + '"></div>'; }).join('') +
       '<div class="notice warn">修改初始餘額會影響所有餘額計算。若只是想更正目前餘額，請使用「調整帳戶餘額」。</div>' +
       '<div class="form-actions"><button type="button" class="btn" data-close>取消</button><button class="btn primary" type="submit">儲存</button></div></form>',
       body => body.querySelector('#init-f').addEventListener('submit', e => {
         e.preventDefault();
         const f = e.target, ni = {};
-        for (const id of C.ACC_IDS) { const v = C.toCents(f[id].value); if (Number.isNaN(v)) { alert(NAME[id] + '金額格式不正確'); return; } ni[id] = v; }
+        for (const id of C.ACC_IDS) { const v = sCents(f[id].value); if (Number.isNaN(v)) { alert(NAME[id] + '金額格式不正確'); return; } ni[id] = C.ACC[id].kind === 'credit' ? -v : v; }
         const r = C.compute({ ...state, initial: ni });
         if (r.problems.some(p => p.hard)) { alert('這樣設定會令零錢或零錢筒出現負數，請檢查。'); return; }
         commit(state.txs, '已修改初始餘額', () => { state.initial = ni; });
@@ -1097,6 +1242,7 @@
       try { localStorage.setItem(KEY + '.before-import', JSON.stringify(state)); } catch (_) { /* ignore */ }
       undoStack.push({ txs: state.txs, initial: { ...state.initial }, label: '已匯入備份' });
       state = ns;
+      applyEnv();
       save(); applyTheme(); quickSig = ''; refresh();
       toast('已匯入及恢復 ' + ns.txs.length + ' 筆交易', true);
     };
@@ -1110,11 +1256,12 @@
     else document.documentElement.removeAttribute('data-theme');
   }
   applyTheme();
+  if (window.I18N) I18N.setLang(state.settings.lang);
   if (navigator.storage && navigator.storage.persist) {
     navigator.storage.persisted().then(p => p || navigator.storage.persist()).then(p => { renderSettings.persisted = p; if (view === 'settings') renderSettings(); }).catch(() => {});
   }
   // 其他分頁修改資料時同步
-  window.addEventListener('storage', e => { if (e.key === KEY) { state = load(); quickSig = ''; refresh(); } });
+  window.addEventListener('storage', e => { if (e.key === KEY) { state = load(); applyEnv(); quickSig = ''; refresh(); } });
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW', err));
   }

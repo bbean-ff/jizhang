@@ -20,7 +20,7 @@
 <body>
 <div id="app">
   <nav class="tabbar" id="tabbar">
-    <div class="brand">記賬</div>
+    <div class="brand" data-notr>記賬</div>
     <a href="#home" data-tab="home"><span class="ti">⌂</span><span>首頁</span></a>
     <a href="#entry" data-tab="entry"><span class="ti">✎</span><span>記賬</span></a>
     <a href="#records" data-tab="records"><span class="ti">☰</span><span>紀錄</span></a>
@@ -31,7 +31,7 @@
   <main id="main">
     <!-- 首頁 -->
     <section class="view" id="view-home">
-      <header class="page-head"><h1>記賬</h1><span class="sub" id="home-date"></span></header>
+      <header class="page-head"><h1 data-notr>記賬</h1><span class="sub" id="home-date"></span></header>
       <div class="home-grid">
         <div class="col">
           <div class="card hero">
@@ -87,6 +87,7 @@
       <div class="entry-grid">
         <div class="col">
           <div class="mode-banner" id="mode-banner"></div>
+          <div class="chips acc-chips" id="e-accounts" hidden></div>
           <div class="card">
             <div class="field-label sc-head"><span>常用捷徑</span><a href="#settings" data-goto-sc>管理</a></div>
             <div class="chips sc-chips" id="e-shortcuts"></div>
@@ -146,7 +147,6 @@
         <div class="filter-row">
           <select id="r-acc" class="input">
             <option value="">全部帳戶</option>
-            <option value="cash">現金</option><option value="alipay">Alipay（支付寶）</option><option value="change">零錢</option><option value="jar">零錢筒</option>
           </select>
           <select id="r-type" class="input">
             <option value="">全部類型</option>
@@ -191,6 +191,7 @@
 <div class="tip" id="tip" hidden></div>
 
 <script src="core.js"></script>
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

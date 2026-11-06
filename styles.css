@@ -206,6 +206,17 @@ select.input { background-image: linear-gradient(45deg, transparent 50%, var(--m
 .sp[aria-pressed="true"] small { color: rgba(255,255,255,.9); }
 .sp:disabled { opacity: .35; }
 
+/* ---------- 付款方式 ---------- */
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; vertical-align: 1px; }
+.acc-chips { margin: 0; padding: 0; }
+.acc-chip { display: inline-flex; align-items: center; gap: 6px; }
+.acc-chip.on { border-color: var(--ac); background: color-mix(in srgb, var(--ac) 16%, var(--surface)); font-weight: 600; }
+.acc-tag { font-style: normal; font-size: 10px; padding: 1px 5px; border-radius: 5px; background: var(--surface-3); color: var(--text-2); margin-left: 2px; }
+.acc-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.color-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.color-dot { width: 34px; height: 34px; border-radius: 50%; border: 3px solid transparent; box-shadow: inset 0 0 0 2px var(--surface); }
+.color-dot.on { border-color: var(--text); }
+
 /* ---------- 常用捷徑 ---------- */
 .sc-head { display: flex; justify-content: space-between; align-items: center; }
 .sc-head a { font-size: 13px; }
@@ -320,7 +331,7 @@ details.tbl summary { cursor: pointer; color: var(--accent); font-size: 14px; ma
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); min-height: 48px; }
 .set-row:last-child { border-bottom: 0; }
 .set-row .sr-l { min-width: 0; }
-.set-row .sr-d { font-size: 12px; color: var(--muted); }
+.sr-d { font-size: 12px; color: var(--muted); }
 .qa-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .qa-item:last-child { border-bottom: 0; }
 .qa-item .input { flex: 1; min-width: 0; min-height: 40px; padding: 6px 10px; }
