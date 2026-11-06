@@ -14,7 +14,7 @@
   ];
   const ACC_IDS = ACCOUNTS.map(a => a.id);
   const NAME = Object.fromEntries(ACCOUNTS.map(a => [a.id, a.name]));
-  const DEFAULT_INITIAL = { cash: 120000, alipay: 4820, change: 0, jar: 0 };
+  const DEFAULT_INITIAL = { cash: 0, alipay: 0, change: 0, jar: 0 };
   const DEFAULT_QUICK = [10000, 5000, 2000, 1000, 500, 200, 100, 50];
   // 這兩個帳戶絕不可透支
   const NO_OVERDRAFT = ['change', 'jar'];
