@@ -206,6 +206,28 @@ select.input { background-image: linear-gradient(45deg, transparent 50%, var(--m
 .sp[aria-pressed="true"] small { color: rgba(255,255,255,.9); }
 .sp:disabled { opacity: .35; }
 
+/* ---------- 常用捷徑 ---------- */
+.sc-head { display: flex; justify-content: space-between; align-items: center; }
+.sc-head a { font-size: 13px; }
+.sc-chips { margin-top: 0; }
+.sc-chip { display: inline-flex; align-items: center; gap: 6px; }
+.sc-chip .sc-amt { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sc-chip.inc, .sc-btn.inc { border-color: color-mix(in srgb, var(--m-cash-inc) 45%, var(--border)); background: color-mix(in srgb, var(--m-cash-inc) 10%, var(--surface-2)); }
+.sc-chip.ali, .sc-btn.ali { border-color: color-mix(in srgb, var(--m-ali-exp) 45%, var(--border)); }
+.sc-chip.add { color: var(--accent); }
+.sc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.sc-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 64px; padding: 8px 6px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-2); text-align: center; line-height: 1.2; min-width: 0; }
+.sc-btn b { font-size: 15px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-btn small { font-size: 11px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-btn.add { color: var(--accent); border-style: dashed; background: transparent; }
+.sc-tag { flex: none; white-space: nowrap; display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 6px; margin-right: 4px; color: #fff; vertical-align: 1px; }
+.sc-tag.exp { background: var(--m-cash-exp); }
+.sc-tag.inc { background: var(--m-cash-inc); }
+.sc-row { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; text-align: left; border: 0; background: none; padding: 6px 0; min-height: 40px; }
+.sc-row b { flex: none; }
+.sc-row small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.sc-btn:active, .sc-chip:active { transform: scale(.97); }
+
 /* ---------- 交易列表 ---------- */
 .tx-list { display: flex; flex-direction: column; }
 .tx { display: flex; align-items: center; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--border); width: 100%; background: none; border-left: 0; border-right: 0; border-top: 0; text-align: left; }

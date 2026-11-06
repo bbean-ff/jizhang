@@ -29,6 +29,7 @@
   }
   function migrate(s) {
     const d = C.defaultState();
+    if (s.settings && !Array.isArray(s.settings.shortcuts)) delete s.settings.shortcuts;
     return {
       ...d, ...s,
       initial: { ...d.initial, ...(s.initial || {}) },
@@ -225,6 +226,9 @@
     const jb = $('#act-jar');
     jb.disabled = ch <= 0;
     jb.querySelector('span:last-child').textContent = ch > 0 ? '零錢 ' + fmt(ch) + ' 轉入零錢筒' : '將零錢全部轉入零錢筒（沒有零錢）';
+    const scs = state.settings.shortcuts;
+    $('#h-shortcuts').innerHTML = scs.map(sc => '<button class="sc-btn' + scCls(sc) + '" data-sc="' + esc(sc.id) + '"><b>' + esc(sc.name) + '</b><small>' + (sc.account === 'alipay' ? 'Alipay' : '現金') + (sc.type === 'income' ? '收入' : '') + '</small>' + (sc.amount > 0 ? '<small>' + shortAmt(sc.amount) + '</small>' : '') + '</button>').join('') +
+      '<button class="sc-btn add" data-sc-new><b>＋</b><small>新增捷徑</small></button>';
     const recent = comp.rows.slice(-6).reverse();
     $('#h-recent').innerHTML = recent.length ? recent.map(r => txRowHtml(r, { withDate: true })).join('') : '<div class="empty">尚未有紀錄。試試輸入「早餐25」。</div>';
   }
@@ -242,6 +246,85 @@
     else if (a === 'jar') openJar();
     else if (a === 'adjust') openAdjust('cash');
     else if (a === 'transfer') openTransfer();
+  });
+
+  /* ---------- 常用捷徑 ---------- */
+  function scCls(sc) { return (sc.type === 'income' ? ' inc' : '') + (sc.account === 'alipay' ? ' ali' : ''); }
+  function scMeta(sc) {
+    const acc = sc.account === 'alipay' ? 'Alipay' : '現金';
+    return (sc.type === 'income' ? acc + '收入' : acc) + (sc.amount > 0 ? ' · ' + shortAmt(sc.amount) : '');
+  }
+  function shortAmt(c) { return c % 100 === 0 ? '$' + (c / 100).toLocaleString('en-US') : fmt(c).replace('HK', ''); }
+  function applyShortcut(id) {
+    const sc = state.settings.shortcuts.find(s => s.id === id);
+    if (!sc) return;
+    // 有金額 + 已開啟「直接記賬」→ 一按即記
+    if (state.settings.shortcutDirect && sc.amount > 0) {
+      const f = sc.type === 'income'
+        ? { type: 'income', account: sc.account, amount: sc.amount, item: sc.name }
+        : { type: 'expense', account: sc.account, amount: sc.amount, change: 0, item: sc.name };
+      addTx(f);
+      return;
+    }
+    resetEntry(false);
+    qe.income = sc.type === 'income';
+    qe.account = sc.account;
+    qe.main = sc.amount || 0;
+    $('#e-item').value = sc.name;
+    if (view !== 'entry') go('entry'); else renderEntry(true);
+    toast(sc.amount > 0 ? '已填入「' + sc.name + '」，確認後按記賬' : '已選「' + sc.name + '」，請輸入金額');
+  }
+  function openShortcutEdit(id) {
+    const list = state.settings.shortcuts;
+    const sc = id ? list.find(s => s.id === id) : null;
+    const cur = sc || { name: '', type: qe.income ? 'income' : 'expense', account: qe.account, amount: 0 };
+    const seg = (name, opts, val) => '<div class="seg" data-seg="' + name + '">' + opts.map(([k, n]) => '<button type="button" data-v="' + k + '" class="' + (k === val ? 'on' : '') + '">' + n + '</button>').join('') + '</div>';
+    openSheet(sc ? '編輯捷徑' : '新增捷徑',
+      '<form class="form" id="sc-f" autocomplete="off">' +
+      '<div><label class="field-label">名稱（即記賬項目）</label><input class="input" name="name" maxlength="20" placeholder="例如：午餐、買水、薪金" value="' + esc(cur.name) + '"></div>' +
+      '<div><label class="field-label">類型</label>' + seg('type', [['expense', '支出'], ['income', '收入']], cur.type) + '</div>' +
+      '<div><label class="field-label">帳戶</label>' + seg('account', [['cash', '現金'], ['alipay', 'Alipay（支付寶）']], cur.account) + '</div>' +
+      '<div><label class="field-label">預設金額（可留空，留空則每次自行輸入）</label><input class="input" name="amount" inputmode="decimal" placeholder="例如 35" value="' + (cur.amount > 0 ? C.plain(cur.amount) : '') + '"></div>' +
+      '<div class="form-actions">' + (sc ? '<button type="button" class="btn danger" id="sc-del">刪除</button>' : '<button type="button" class="btn" data-close>取消</button>') + '<button type="submit" class="btn primary">儲存</button></div></form>',
+      body => {
+        const f = body.querySelector('#sc-f');
+        body.querySelectorAll('[data-seg]').forEach(sg => sg.addEventListener('click', e => {
+          const b = e.target.closest('[data-v]');
+          if (!b) return;
+          sg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+        }));
+        const segVal = n => body.querySelector('[data-seg="' + n + '"] .on').dataset.v;
+        if (!sc) setTimeout(() => f.name.focus(), 50);
+        const del = body.querySelector('#sc-del');
+        if (del) del.addEventListener('click', () => {
+          if (!confirm('刪除捷徑「' + sc.name + '」？')) return;
+          state.settings.shortcuts = list.filter(s => s.id !== sc.id);
+          save(); closeSheet(); render(); toast('已刪除捷徑');
+        });
+        f.addEventListener('submit', e => {
+          e.preventDefault();
+          const name = f.name.value.trim();
+          if (!name) { f.name.focus(); return; }
+          const s = f.amount.value.trim();
+          const amount = s === '' ? 0 : C.toCents(s);
+          if (Number.isNaN(amount) || amount < 0) { alert('金額格式不正確'); return; }
+          const data = { name, type: segVal('type'), account: segVal('account'), amount };
+          if (sc) Object.assign(sc, data);
+          else list.push({ id: 'sc-' + uid(), ...data });
+          save(); closeSheet(); render();
+          toast(sc ? '已更新捷徑' : '已新增捷徑「' + name + '」');
+        });
+      });
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-sc]');
+    if (b) { applyShortcut(b.dataset.sc); return; }
+    if (e.target.closest('[data-sc-new]')) { openShortcutEdit(null); return; }
+    if (e.target.closest('[data-goto-sc]')) {
+      e.preventDefault();
+      go('settings');
+      setTimeout(() => { const el = $('#set-sc'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
+    }
   });
 
   /* ---------- 文字快速輸入 ---------- */
@@ -337,10 +420,15 @@
     btn.innerHTML = '記賬' + (total > 0 ? ' ' + fmt(total) : '') + '<small>' + m.text + '</small>';
     btn.disabled = total <= 0;
 
+    // 常用捷徑
+    $('#e-shortcuts').innerHTML = state.settings.shortcuts.map(sc => '<button class="chip sc-chip' + scCls(sc) + '" data-sc="' + esc(sc.id) + '">' + (sc.type === 'income' ? '＋' : '') + esc(sc.name) + (sc.amount > 0 ? '<span class="sc-amt">' + shortAmt(sc.amount) + '</span>' : '') + '</button>').join('') +
+      '<button class="chip sc-chip add" data-sc-new>＋ 新增</button>';
+
     // 常用項目
     const freq = {};
     for (const t of state.txs.slice(-300)) if (t.type === 'expense' && t.item) freq[t.item] = (freq[t.item] || 0) + 1;
-    const top = Object.keys(freq).sort((a, b) => freq[b] - freq[a]).slice(0, 10);
+    const scNames = new Set(state.settings.shortcuts.map(s => s.name));
+    const top = Object.keys(freq).filter(k => !scNames.has(k)).sort((a, b) => freq[b] - freq[a]).slice(0, 10);
     $('#e-recent').innerHTML = qe.income ? '' : top.map(s => '<button class="chip" data-item="' + esc(s) + '">' + esc(s) + '</button>').join('');
   }
   $('#quick-grid').addEventListener('click', e => {
@@ -847,6 +935,16 @@
       '<div class="qa-item"><input class="input" inputmode="decimal" id="qa-new" placeholder="新增金額，例如 3.5"><button class="btn small primary" id="qa-add">新增</button></div>' +
       '<div class="set-row"><span class="sr-l">恢復預設快捷金額<div class="sr-d">100、50、20、10、5、2、1、0.50</div></span><button class="btn small" id="qa-reset">恢復預設</button></div>' +
       '</div></div>' +
+      '<div class="set-section" id="set-sc"><h3>常用捷徑（支出／收入）</h3><div class="card">' +
+      (s.shortcuts.length ? '' : '<div class="empty">尚未設定捷徑</div>') +
+      s.shortcuts.map((sc, i) => '<div class="qa-item"><button class="sc-row" data-sc-edit="' + esc(sc.id) + '"><span class="sc-tag ' + (sc.type === 'income' ? 'inc' : 'exp') + '">' + (sc.type === 'income' ? '收入' : '支出') + '</span><b>' + esc(sc.name) + '</b><small>' + esc(scMeta(sc)) + '</small></button>' +
+        '<button class="icon-btn" data-sc-up="' + i + '"' + (i === 0 ? ' disabled' : '') + ' aria-label="上移">↑</button>' +
+        '<button class="icon-btn" data-sc-down="' + i + '"' + (i === s.shortcuts.length - 1 ? ' disabled' : '') + ' aria-label="下移">↓</button>' +
+        '<button class="icon-btn del" data-sc-del="' + i + '" aria-label="刪除">✕</button></div>').join('') +
+      '<div class="btn-col" style="margin-top:10px"><button class="btn primary" data-sc-new>＋ 新增捷徑</button></div>' +
+      '<div class="set-row"><span class="sr-l">點擊捷徑直接記賬<div class="sr-d">只適用於有預設金額的捷徑；關閉時會先填入記賬頁讓你確認</div></span><label class="switch"><input type="checkbox" id="set-scdirect"' + (s.shortcutDirect ? ' checked' : '') + '><span></span></label></div>' +
+      '<div class="set-row"><span class="sr-l">恢復預設捷徑<div class="sr-d">早餐、午餐、晚餐、買水、交通、零用錢、薪金</div></span><button class="btn small" id="sc-reset">恢復預設</button></div>' +
+      '</div></div>' +
       '<div class="set-section"><h3>記賬</h3><div class="card">' +
       '<div class="set-row"><span class="sr-l">金額輸入模式<div class="sr-d">累加：20+10+5=35；直接設定：按 20 即 20</div></span><div class="seg" id="set-mode"><button data-mode="add" class="' + (s.inputMode === 'add' ? 'on' : '') + '">累加</button><button data-mode="set" class="' + (s.inputMode === 'set' ? 'on' : '') + '">直接設定</button></div></div>' +
       '<div class="set-row"><span class="sr-l">記賬後重設為「現金支出」<div class="sr-d">關閉後會保留 A／收入模式</div></span><label class="switch"><input type="checkbox" id="set-reset"' + (s.resetAfter ? ' checked' : '') + '><span></span></label></div>' +
@@ -876,6 +974,19 @@
     const b = e.target.closest('button');
     if (!b) return;
     const qa = [...state.settings.quickAmounts];
+    const scl = state.settings.shortcuts;
+    if (b.dataset.scEdit) { openShortcutEdit(b.dataset.scEdit); return; }
+    if (b.dataset.scUp || b.dataset.scDown || b.dataset.scDel) {
+      const i = +(b.dataset.scUp || b.dataset.scDown || b.dataset.scDel);
+      if (b.dataset.scUp) [scl[i - 1], scl[i]] = [scl[i], scl[i - 1]];
+      else if (b.dataset.scDown) [scl[i + 1], scl[i]] = [scl[i], scl[i + 1]];
+      else { if (!confirm('刪除捷徑「' + scl[i].name + '」？')) return; scl.splice(i, 1); toast('已刪除捷徑'); }
+      save(); renderSettings(); return;
+    }
+    if (b.id === 'sc-reset') {
+      if (confirm('恢復預設捷徑？你自訂的捷徑會被取代。')) { state.settings.shortcuts = C.DEFAULT_SHORTCUTS.map(x => ({ ...x })); save(); renderSettings(); toast('已恢復預設捷徑'); }
+      return;
+    }
     if (b.dataset.up) { const i = +b.dataset.up; [qa[i - 1], qa[i]] = [qa[i], qa[i - 1]]; setQuick(qa); }
     else if (b.dataset.down) { const i = +b.dataset.down; [qa[i + 1], qa[i]] = [qa[i], qa[i + 1]]; setQuick(qa); }
     else if (b.dataset.del) { if (qa.length <= 1) { toast('最少要保留一個快捷金額'); return; } qa.splice(+b.dataset.del, 1); setQuick(qa); toast('已刪除快捷金額'); }
@@ -906,6 +1017,7 @@
       if (!(v > 0)) { toast('請輸入正確金額'); el.value = C.plain(qa[+el.dataset.qi]); return; }
       qa[+el.dataset.qi] = v; setQuick(qa); toast('已更新快捷金額');
     } else if (el.id === 'set-reset') { state.settings.resetAfter = el.checked; save(); }
+    else if (el.id === 'set-scdirect') { state.settings.shortcutDirect = el.checked; save(); }
     else if (el.id === 'im-file') { importFile(el.files[0]); el.value = ''; }
   });
   $('#set-body').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'qa-new') { e.preventDefault(); $('#qa-add').click(); } });

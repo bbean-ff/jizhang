@@ -50,6 +50,10 @@
         </div>
         <div class="col">
           <div class="card">
+            <div class="card-title">常用捷徑 <a href="#settings" class="more" data-goto-sc>管理 ›</a></div>
+            <div class="sc-grid" id="h-shortcuts"></div>
+          </div>
+          <div class="card">
             <div class="card-title">快速輸入</div>
             <form class="qt" id="home-qt" autocomplete="off">
               <input type="text" enterkeyhint="done" placeholder="早餐25、糖A10、早餐30+5、現金+350">
@@ -84,7 +88,9 @@
         <div class="col">
           <div class="mode-banner" id="mode-banner"></div>
           <div class="card">
-            <label class="field-label" for="e-item">項目</label>
+            <div class="field-label sc-head"><span>常用捷徑</span><a href="#settings" data-goto-sc>管理</a></div>
+            <div class="chips sc-chips" id="e-shortcuts"></div>
+            <label class="field-label" for="e-item" style="margin-top:12px">項目</label>
             <input type="text" id="e-item" class="input" placeholder="例如：早餐（可留空）" autocomplete="off" enterkeyhint="done">
             <div class="chips" id="e-recent"></div>
           </div>

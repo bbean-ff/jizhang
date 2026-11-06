@@ -16,6 +16,16 @@
   const NAME = Object.fromEntries(ACCOUNTS.map(a => [a.id, a.name]));
   const DEFAULT_INITIAL = { cash: 0, alipay: 0, change: 0, jar: 0 };
   const DEFAULT_QUICK = [10000, 5000, 2000, 1000, 500, 200, 100, 50];
+  // 常用捷徑：amount 為 0 代表不預設金額，點擊後再輸入
+  const DEFAULT_SHORTCUTS = [
+    { id: 'sc-breakfast', name: '早餐', type: 'expense', account: 'cash', amount: 0 },
+    { id: 'sc-lunch', name: '午餐', type: 'expense', account: 'cash', amount: 0 },
+    { id: 'sc-dinner', name: '晚餐', type: 'expense', account: 'cash', amount: 0 },
+    { id: 'sc-water', name: '買水', type: 'expense', account: 'cash', amount: 0 },
+    { id: 'sc-transport', name: '交通', type: 'expense', account: 'cash', amount: 0 },
+    { id: 'sc-pocket', name: '零用錢', type: 'income', account: 'cash', amount: 0 },
+    { id: 'sc-salary', name: '薪金', type: 'income', account: 'cash', amount: 0 },
+  ];
   // 這兩個帳戶絕不可透支
   const NO_OVERDRAFT = ['change', 'jar'];
   const TYPE_NAME = { expense: '支出', income: '收入', transfer: '轉帳', adjust: '餘額調整' };
@@ -31,6 +41,8 @@
         inputMode: 'add', // add = 累加, set = 直接設定
         theme: 'auto',
         resetAfter: true, // 記賬後重設為「現金支出」
+        shortcuts: DEFAULT_SHORTCUTS.map(s => ({ ...s })),
+        shortcutDirect: false, // 點擊有金額的捷徑時直接記賬
       },
       meta: { createdAt: Date.now(), lastExport: null },
     };
@@ -221,7 +233,7 @@
   }
 
   g.Core = {
-    ACCOUNTS, ACC_IDS, NAME, DEFAULT_INITIAL, DEFAULT_QUICK, NO_OVERDRAFT, TYPE_NAME,
+    ACCOUNTS, ACC_IDS, NAME, DEFAULT_INITIAL, DEFAULT_QUICK, DEFAULT_SHORTCUTS, NO_OVERDRAFT, TYPE_NAME,
     defaultState, toCents, fmt, plain, shortNum, dayKey, monthKey, startOfDay, fmtTime, fmtDateTime,
     txTotal, deltas, involves, cmpTx, compute, stats, parse, normalize, describe,
   };
