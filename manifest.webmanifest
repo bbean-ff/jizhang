@@ -1,7 +1,7 @@
 {
-  "name": "記賬",
-  "short_name": "記賬",
-  "description": "個人記賬小工具（港幣 HKD）",
+  "name": "賬本Ledger",
+  "short_name": "賬本Ledger",
+  "description": "Personal expense tracker / 個人記賬小工具",
   "lang": "zh-Hant-HK",
   "start_url": "./index.html#home",
   "scope": "./",

@@ -49,7 +49,7 @@
     '尚未有紀錄。試試輸入「早餐': 'No records yet. Try typing "早餐',
     '清除所有交易並恢復初始狀態': 'Clear all transactions and reset',
     '記賬後重設為「現金支出」': 'Reset to "Cash expense" after each entry',
-    '這不是「記賬」的備份檔。': 'This is not a 記賬 backup file.',
+    '這不是「賬本Ledger」的備份檔。': 'This is not a 賬本Ledger backup file.',
     '例如：午餐、買水、薪金': 'e.g. Lunch, Water, Salary',
     '常用捷徑（支出／收入）': 'Shortcuts (expense / income)',
     '最少要保留一個快捷金額': 'Keep at least one quick amount',

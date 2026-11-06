@@ -33,7 +33,11 @@
       console.error(e);
       try { if (raw) localStorage.setItem(KEY + '.corrupt.' + Date.now(), raw); } catch (_) { /* ignore */ }
     }
-    return C.defaultState();
+    // 第一次使用：按裝置語言選擇介面語言（之後可在設定更改）
+    const d = C.defaultState();
+    const nl = (navigator.language || '').toLowerCase();
+    d.settings.lang = /^zh-(cn|sg|hans)/.test(nl) ? 'zh-Hans' : nl.startsWith('zh') ? 'zh-Hant' : 'en';
+    return d;
   }
   function migrate(s) {
     const d = C.defaultState();
@@ -1203,8 +1207,8 @@
     return true;
   }
   async function exportJSON() {
-    const data = JSON.stringify({ app: '記賬', exportedAt: new Date().toISOString(), ...state }, null, 2);
-    if (await deliver('記賬備份-' + stamp() + '.json', data, 'application/json')) {
+    const data = JSON.stringify({ app: '賬本Ledger', exportedAt: new Date().toISOString(), ...state }, null, 2);
+    if (await deliver('Ledger-backup-' + stamp() + '.json', data, 'application/json')) {
       state.meta.lastExport = Date.now(); save(); renderSettings(); toast('已匯出備份');
     }
   }
@@ -1224,7 +1228,7 @@
         t.note].concat(C.ACC_IDS.flatMap(k => [P(r.before[k]), P(r.after[k])]), [P(r.totalBefore), P(r.totalAfter)]);
       lines.push(row.map(q).join(','));
     }
-    if (await deliver('記賬紀錄-' + stamp() + '.csv', '﻿' + lines.join('\r\n'), 'text/csv')) toast('已匯出 CSV');
+    if (await deliver('Ledger-records-' + stamp() + '.csv', '﻿' + lines.join('\r\n'), 'text/csv')) toast('已匯出 CSV');
   }
   function importFile(file) {
     if (!file) return;
@@ -1232,7 +1236,7 @@
     rd.onload = () => {
       let d;
       try { d = JSON.parse(rd.result); } catch (e) { alert('檔案不是有效的 JSON。'); return; }
-      if (!d || !Array.isArray(d.txs) || !d.initial) { alert('這不是「記賬」的備份檔。'); return; }
+      if (!d || !Array.isArray(d.txs) || !d.initial) { alert('這不是「賬本Ledger」的備份檔。'); return; }
       const okTx = d.txs.every(t => t && t.id && Number.isFinite(t.time) && ['expense', 'income', 'transfer', 'adjust'].includes(t.type));
       if (!okTx) { alert('備份檔內的交易資料格式不正確。'); return; }
       const ns = migrate(d);

@@ -1,153 +1,125 @@
-# 記賬 — 個人記賬小工具（PWA）
+<p align="center"><img src="icons/icon-192.png" width="96" alt="賬本Ledger icon"></p>
 
-適用於 iPhone / iPad Safari 的網頁 App，可以加入主畫面當 App 使用。繁體中文、港幣 HKD、離線可用，資料保存在你自己的裝置內。
+<h1 align="center">賬本Ledger</h1>
 
-## 檔案
+<p align="center">
+A simple, fast, private expense tracker for iPhone & iPad — works offline, no account, no server.<br>
+簡單、快速、注重私隱的記賬 App，適用於 iPhone 及 iPad — 可離線使用，無需註冊，沒有伺服器。
+</p>
 
-| 檔案 | 用途 |
+<p align="center"><b>👉 <a href="https://bbean-ff.github.io/jizhang/">Open the app / 打開 App</a></b></p>
+
+<p align="center"><a href="#english">English</a> · <a href="#中文">中文</a></p>
+
+---
+
+<a id="english"></a>
+
+## English
+
+### What is it?
+
+賬本Ledger is a personal bookkeeping web app (PWA). Open it in Safari, add it to your Home Screen, and it runs like a native app — even without internet. All your data stays **on your own device**; nothing is uploaded anywhere.
+
+### Features
+
+- **Quick entry** — tap quick-amount buttons (HK$100, 50, 20, 10, 5, 2, 1, 0.50 — customisable), add up or set directly, then tap *Record*.
+- **Type it in one line** — `早餐25` (breakfast $25, cash), `糖A10` (paid by Alipay), `早餐30+5` (cash $30 + loose change $5), `現金+350` (cash income), `A設成1.48` (set Alipay balance to 1.48).
+- **Shortcuts** — one-tap presets for things you buy often (breakfast, lunch, water, transport…) and regular income (salary, pocket money). Add your own, with or without a preset amount.
+- **Accounts & payment methods** — built-in Cash, Alipay, Change and Coin jar, plus your own: Octopus, bank card, WeChat Pay, PayMe… **Credit cards** track debt (negative balance) and are repaid with a transfer.
+- **Income, expense, transfer, balance adjustment** — every change is recorded with before/after balances.
+- **Records** — filter by date, account and type; edit, delete or undo any transaction. All balances and totals are recalculated automatically.
+- **Statistics** — daily/monthly spending, monthly income vs expense charts, spending by item, account changes, and a reconciliation check (`total = opening + income − expense ± adjustments`).
+- **Backup** — export JSON (full restore) or CSV (Excel / Numbers), and import to restore.
+- **Languages** — 繁體中文, 简体中文, English (auto-detected on first launch).
+- **Currencies** — HK$, MOP$, ¥, NT$, US$, JP¥, €, £, S$, RM, ₩ (display symbol only; no conversion).
+- Dark & light mode, iPhone and iPad layouts, works offline.
+
+### Install on iPhone / iPad
+
+1. Open **<https://bbean-ff.github.io/jizhang/>** in **Safari**.
+2. Tap the **Share** button ⬆︎ → **Add to Home Screen** → **Add**.
+3. Always open it from the Home Screen icon.
+
+> ⚠️ Your data is stored only on your device. Safari and the Home Screen app keep **separate** data, and deleting the Home Screen icon deletes its data. Use **Settings → Export JSON backup** regularly and save it to the Files app.
+
+### Host your own copy
+
+The app is plain static files (HTML, CSS, JavaScript) — no build step, no dependencies.
+
+- **GitHub Pages**: fork this repository → *Settings → Pages* → deploy from branch `main`, folder `/ (root)`.
+- **Any static host** (Netlify, Cloudflare Pages, your own server): upload all files. HTTPS is required for offline use and Add to Home Screen.
+- **Locally**: `python -m http.server 8765`, then open <http://localhost:8765>.
+
+After changing files, bump `VERSION` in `sw.js` so installed apps pick up the update.
+
+### Files
+
+| File | Purpose |
 |---|---|
-| `index.html` | 主頁面 |
-| `styles.css` | 介面樣式（深色／淺色模式、手機／平板版面） |
-| `core.js` | 核心計算：餘額重算、統計、文字輸入解析 |
-| `app.js` | 介面操作 |
-| `sw.js` | Service Worker（離線使用） |
-| `manifest.webmanifest`、`icons/` | 主畫面 App 名稱及圖示 |
+| `index.html` | Page layout |
+| `styles.css` | Styles (dark/light, phone/tablet) |
+| `core.js` | Calculations, statistics, text-entry parser |
+| `app.js` | User interface |
+| `i18n.js` | Simplified Chinese and English translations |
+| `sw.js` | Service worker (offline support) |
+| `manifest.webmanifest`, `icons/` | Home Screen name and icons |
 
-不需要任何伺服器程式或資料庫，全部是靜態檔案。
+### Privacy
 
----
+No accounts, no analytics, no tracking, no server. Everything is saved in your browser's local storage on your own device.
 
-## 部署方法（三選一）
+### License
 
-> iPhone 要「加入主畫面」並離線使用，網址必須是 **HTTPS**。以下方法都是免費並自動提供 HTTPS。
-
-### 方法 A：Netlify Drop（最簡單，約 1 分鐘）
-1. 在電腦打開 <https://app.netlify.com/drop>（需免費註冊）。
-2. 把整個 `jizhang` 資料夾拖進網頁。
-3. 完成後會得到一個網址，例如 `https://xxxx.netlify.app`。
-
-### 方法 B：GitHub Pages
-1. 在 GitHub 建立一個新 repository，把資料夾內所有檔案上傳。
-2. Settings → Pages → Source 選 `main` 分支、根目錄 `/`，按 Save。
-3. 約 1 分鐘後可用：`https://你的帳號.github.io/repository名稱/`。
-
-### 方法 C：Cloudflare Pages
-1. <https://pages.cloudflare.com> → Create project → Direct Upload。
-2. 上傳 `jizhang` 資料夾，得到 `https://xxxx.pages.dev`。
-
-### 在電腦本機測試
-```bash
-python -m http.server 8765
-```
-然後在瀏覽器打開 `http://localhost:8765`。
+[MIT](LICENSE) — free to use, copy, modify and share.
 
 ---
 
-## 加入 iPhone / iPad 主畫面
+<a id="中文"></a>
 
-1. 用 **Safari** 打開你部署的網址。
-2. 按下方（iPad 在上方）的「分享」按鈕 ⬆︎。
-3. 選「加入主畫面」→ 名稱「記賬」→ 加入。
-4. 之後從主畫面圖示打開，會以全螢幕 App 形式運行，沒有網絡也能使用。
+## 中文
 
-> ⚠️ **重要**：Safari 網頁與主畫面 App 的資料是**分開保存**的。請固定從主畫面圖示打開記賬，不要有時用 Safari 分頁、有時用主畫面。
-> 刪除主畫面圖示，或在「設定 → Safari → 清除瀏覽紀錄及網站資料」會刪除記賬資料，所以請定期匯出備份。
+### 簡介
 
----
+賬本Ledger 是一個個人記賬網頁 App（PWA）。用 Safari 打開並加入主畫面後，就可以像一般 App 一樣使用，沒有網絡也可以。所有資料只保存在**你自己的裝置**上，不會上傳到任何地方。
 
-## 使用方式
+### 功能
 
-### 首頁
-- 總資產、累計收入、累計支出、今日支出、本月支出。
-- 四個帳戶卡片：點擊即可直接修改該帳戶餘額。
-- **快速輸入**框：直接打字記賬（見下表）。
-- 快捷操作：快速記賬、收入、支出、將零錢全部轉入零錢筒、調整帳戶餘額、帳戶間轉帳。
+- **快速記賬**：點快捷金額（HK$100、50、20、10、5、2、1、0.50，可自訂），支援累加或直接設定，然後按「記賬」。
+- **一行文字記賬**：`早餐25`（現金）、`糖A10`（Alipay 支付）、`早餐30+5`（現金 30 ＋ 零錢 5）、`現金+350`（現金收入）、`A+100`（Alipay 收入）、`A設成1.48`（直接設定 Alipay 餘額）。
+- **常用捷徑**：早餐、午餐、晚餐、買水、交通、零用錢、薪金等，一按即填入；可自行新增、編輯、排序，並可設定預設金額。
+- **帳戶及付款方式**：內建現金、Alipay（支付寶）、零錢、零錢筒，另可自行新增八達通、銀行卡、微信支付、PayMe 等；**信用卡**會記錄欠款，以轉帳還款。
+- **零錢規則**：普通支出一律用現金，只有明確指定（例如 `早餐30+5` 或按「＋」）才使用零錢；零錢及零錢筒不可透支；「將零錢全部轉入零錢筒」完全手動。
+- **收入、支出、轉帳、餘額調整**：每筆交易都保存交易前後餘額。
+- **交易紀錄**：按日期、帳戶、類型篩選；可編輯、刪除、撤銷，所有餘額及統計會自動重新計算。
+- **統計**：每日／每月支出、每月收入與支出圖表、支出分類、各帳戶資金變化、資產核對（總資產 = 初始總資產 ＋ 累計收入 − 累計支出 ± 調整）。
+- **備份**：匯出 JSON（可完整恢復）或 CSV（Excel／Numbers），亦可匯入恢復。
+- **語言**：繁體中文、简体中文、English（第一次打開時按裝置語言自動選擇）。
+- **貨幣**：HK$、MOP$、¥、NT$、US$、JP¥、€、£、S$、RM、₩（只改變顯示符號，不換算金額）。
+- 支援深色／淺色模式、iPhone 及 iPad 版面、離線使用。
 
-### 文字快速輸入
+### 安裝到 iPhone／iPad
 
-| 輸入 | 結果 |
-|---|---|
-| `早餐25` | 早餐支出 HK$25，**現金**支付 |
-| `糖A10` | 糖支出 HK$10，**Alipay（支付寶）**支付 |
-| `早餐30+5` | 總支出 HK$35：現金 HK$30 ＋ **零錢** HK$5 |
-| `Pizza40+2` | 總支出 HK$42：現金 HK$40 ＋ 零錢 HK$2 |
-| `現金+350` | 現金收入 HK$350 |
-| `A+100` | Alipay（支付寶）收入 HK$100 |
-| `A幫我設成1.48` | Alipay（支付寶）餘額直接設定為 HK$1.48 |
-| `現金轉零錢12.5` | 現金轉 HK$12.50 到零錢（不計收入／支出） |
+1. 用 **Safari** 打開 **<https://bbean-ff.github.io/jizhang/>**。
+2. 按「分享」⬆︎ →「加入主畫面」→「加入」。
+3. 之後請固定由主畫面圖示打開。
 
-輸入時下方會即時顯示系統的理解，確認無誤再按「記賬」。全形數字及「＋」都可以。
-注意：只有**大寫 A** 代表 Alipay（例如 `pizza40` 不會被當成 Alipay）。
+> ⚠️ 資料只保存在你的裝置上。Safari 網頁與主畫面 App 的資料是**分開**的；刪除主畫面圖示會一併刪除資料。請定期到「設定 → 匯出 JSON 備份」，並儲存到「檔案」App。
 
-### 快速記賬（按鈕）
-1. （可選）輸入或點選項目名稱。
-2. 點快捷金額（累加模式：20 → 10 → 5 = 35；直接設定模式：按 20 即 20）。也可以點金額直接打字。
-3. 特殊按鈕：
-   - **A**：切換 Alipay（支付寶）／現金。
-   - **＋**：額外使用零錢。按下後再點的金額會記入「零錢」欄；再按一次「＋」取消零錢。
-   - **＋1**：切換收入模式（配合 A 即 Alipay 收入）。
-   - **C**：清除。
-4. 頂部色帶清楚顯示目前模式：🟧 現金支出、🟦 Alipay（支付寶）支出、🟩 現金收入、🟦（青色）Alipay（支付寶）收入。
-5. 按「記賬」。記賬後預設自動回到「現金支出」（可在設定關閉）。
+### 自行架設
 
-每次記賬後畫面底部會出現提示，可即時按「撤銷」。
+全部都是靜態檔案（HTML、CSS、JavaScript），不需要編譯，也沒有任何依賴套件。
 
-### 零錢規則
-- 普通支出**一律全額用現金**，永不自動使用零錢。
-- 只有輸入 `項目 現金+零錢` 或按「＋」才使用零錢。
-- 零錢、零錢筒**不可透支**，不足時會提示並拒絕記賬。
-- 現金或 Alipay 不足時會提醒，由你決定是否繼續。
-- 「將零錢全部轉入零錢筒」完全手動，會先顯示金額讓你確認；不計收入／支出，總資產不變。
+- **GitHub Pages**：Fork 此儲存庫 →「Settings → Pages」→ 由 `main` 分支、`/ (root)` 部署。
+- **其他靜態網站空間**（Netlify、Cloudflare Pages、自己的伺服器）：上傳所有檔案即可。離線使用及加入主畫面需要 HTTPS。
+- **本機測試**：執行 `python -m http.server 8765`，再打開 <http://localhost:8765>。
 
-### 常用捷徑
-- 首頁及記賬頁都有「常用捷徑」，預設有早餐、午餐、晚餐、買水、交通（支出）及零用錢、薪金（收入）。
-- 點擊捷徑會自動填入項目、支出／收入、帳戶及預設金額，確認後按「記賬」；沒有預設金額的捷徑則再點快捷金額。
-- 在「設定 → 常用捷徑」可以新增、編輯（名稱、類型、現金／Alipay、預設金額）、排序、刪除及恢復預設。
-- 開啟「點擊捷徑直接記賬」後，有預設金額的捷徑一按即記賬（可按提示中的「撤銷」取消）。
+修改檔案後，請把 `sw.js` 裡的 `VERSION` 加一，已安裝的 App 才會載入新版本。
 
-### 付款方式（信用卡、八達通、銀行卡…）
-- 在「設定 → 付款方式／帳戶」按「＋ 新增付款方式」，可輸入名稱、選擇類型及顏色，並填寫目前餘額。
-- 類型分兩種：**一般帳戶**（例如八達通、銀行卡，消費時扣減餘額）及**信用卡**（消費會增加欠款，餘額顯示為負數，不會出現「餘額不足」提示）。信用卡還款：用「帳戶間轉帳」由其他帳戶轉入信用卡。
-- 新增後，記賬頁頂部會出現付款方式選擇列；文字輸入也可用名稱，例如 `早餐八達通25`、`八達通+100`、`八達通設成50`、`現金轉八達通100`。
-- 內建的現金、Alipay（支付寶）、零錢、零錢筒不可刪除，規則維持不變。已有交易紀錄的自訂付款方式不能刪除。
+### 私隱
 
-### 語言及貨幣
-- 「設定 → 語言及貨幣」可選繁體、简体或 English。
-- 貨幣只改變顯示的符號（HK$、¥、NT$、US$ 等），不會換算金額。
+沒有帳號、沒有分析追蹤、沒有伺服器。所有資料只保存在你裝置上瀏覽器的本機儲存空間。
 
-### 交易紀錄
-- 按全部／今日／本週／本月／自訂日期篩選，亦可按帳戶及類型篩選。
-- 點任何一筆查看詳情：交易編號、時間、支付拆分、備註、所有帳戶交易前後餘額。
-- 可以**編輯**、**刪除／撤銷**，所有餘額及統計會自動由頭重新計算。
-- 「↶ 撤銷」可撤銷最近的操作；「＋ 詳細記賬」可補記過去日期的交易。
+### 授權
 
-### 餘額調整
-- 調整記錄「設定為某金額」，並保存調整前、調整後、調整金額、時間及備註。
-- 調整不計入累計收入／支出，另計「手動調整淨額」，因此核對公式永遠成立：
-  **總資產 = 初始總資產 ＋ 累計收入 − 累計支出 ± 手動調整淨額**
-- 若之後修改了調整**之前**的交易，該帳戶在調整時間點仍然是你設定的金額（調整金額會自動重算）。
-
-### 統計
-本月／上月／近7日／近30日／今年／全部／自訂範圍：收入、支出、淨額、日均支出、每日（或每月）支出圖、每月收入與支出圖、支出分類（按項目名稱）、各帳戶期初期末變化、資產核對。點圖表柱可看數值，亦可展開「以表格顯示」。
-
-### 設定
-- 快捷金額：新增、修改、刪除、上下排序、恢復預設。
-- 金額輸入模式、記賬後是否重設為現金支出、深色／淺色模式。
-- **匯出 JSON 備份**（可完整恢復）、**匯出 CSV**（可用 Excel／Numbers 開啟）、**從 JSON 匯入及恢復**。
-  在 iPhone 上匯出會打開分享選單，可選「儲存到檔案」或傳送到其他 App。
-- 修改初始餘額、清除所有資料。
-
----
-
-## 更新 App
-
-修改任何檔案後重新上傳即可。App 採用「有網絡時取最新版本」策略，下次打開（可能需要開兩次）便會更新。
-如修改了檔案清單，可把 `sw.js` 內的 `VERSION` 改為 `jizhang-v2` 等。更新 App 不會影響已保存的資料。
-
-## 已完成的測試
-
-1. 普通現金支出 ✓　2. Alipay 支出 ✓　3. 現金收入 ✓　4. Alipay 收入 ✓
-5. 現金＋零錢拆分（零錢不足時拒絕）✓　6. 零錢轉入零錢筒 ✓　7. 手動調整餘額（文字及介面）✓
-8. 修改、刪除、撤銷交易並自動重算 ✓　9. 快捷金額新增／修改／排序／刪除／累加及直接設定 ✓
-10. 重新整理後資料及設定保存 ✓　11. iPhone（375×812）、iPad（768×1024、1180×820）版面 ✓
-12. 所有餘額、累計收支及資產核對一致 ✓　另：JSON 匯出→清除→匯入完整恢復 ✓
+[MIT](LICENSE) — 可自由使用、複製、修改及分享。
