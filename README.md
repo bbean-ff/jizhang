@@ -24,9 +24,9 @@ A simple, fast, private expense tracker for iPhone & iPad — works offline, no 
 ### Features
 
 - **Quick entry** — tap quick-amount buttons (HK$100, 50, 20, 10, 5, 2, 1, 0.50 — customisable), add up or set directly, then tap *Record*.
-- **Type it in one line** — `早餐25` (breakfast $25, cash), `糖A10` (paid by Alipay), `早餐30+5` (cash $30 + loose change $5), `現金+350` (cash income), `A設成1.48` (set Alipay balance to 1.48).
+- **Type it in one line** — `早餐25` (breakfast $25, cash), `糖A10` (paid by Alipay, if enabled), `早餐30+5` (cash $30 + loose change $5), `現金+350` (cash income), `A設成1.48` (set Alipay balance to 1.48).
 - **Shortcuts** — one-tap presets for things you buy often (breakfast, lunch, water, transport…) and regular income (salary, pocket money). Add your own, with or without a preset amount.
-- **Accounts & payment methods** — built-in Cash, Alipay, Change and Coin jar, plus your own: Octopus, bank card, WeChat Pay, PayMe… **Credit cards** track debt (negative balance) and are repaid with a transfer.
+- **Accounts & payment methods** — built-in Cash, Change and Coin jar; Alipay is optional (turn it on in *Settings → Payment methods*); plus your own: Octopus, bank card, WeChat Pay, PayMe… **Credit cards** track debt (negative balance) and are repaid with a transfer.
 - **Income, expense, transfer, balance adjustment** — every change is recorded with before/after balances.
 - **Records** — filter by date, account and type; edit, delete or undo any transaction. All balances and totals are recalculated automatically.
 - **Statistics** — daily/monthly spending, monthly income vs expense charts, spending by item, account changes, and a reconciliation check (`total = opening + income − expense ± adjustments`).
@@ -86,9 +86,9 @@ No accounts, no analytics, no tracking, no server. Everything is saved in your b
 ### 功能
 
 - **快速記賬**：點快捷金額（HK$100、50、20、10、5、2、1、0.50，可自訂），支援累加或直接設定，然後按「記賬」。
-- **一行文字記賬**：`早餐25`（現金）、`糖A10`（Alipay 支付）、`早餐30+5`（現金 30 ＋ 零錢 5）、`現金+350`（現金收入）、`A+100`（Alipay 收入）、`A設成1.48`（直接設定 Alipay 餘額）。
+- **一行文字記賬**：`早餐25`（現金）、`糖A10`（Alipay 支付，需先啟用）、`早餐30+5`（現金 30 ＋ 零錢 5）、`現金+350`（現金收入）、`A+100`（Alipay 收入）、`A設成1.48`（直接設定 Alipay 餘額）。
 - **常用捷徑**：早餐、午餐、晚餐、買水、交通、零用錢、薪金等，一按即填入；可自行新增、編輯、排序，並可設定預設金額。
-- **帳戶及付款方式**：內建現金、Alipay（支付寶）、零錢、零錢筒，另可自行新增八達通、銀行卡、微信支付、PayMe 等；**信用卡**會記錄欠款，以轉帳還款。
+- **帳戶及付款方式**：內建現金、零錢、零錢筒；Alipay（支付寶）為可選帳戶，可在「設定 → 付款方式」啟用或停用；另可自行新增八達通、銀行卡、微信支付、PayMe 等；**信用卡**會記錄欠款，以轉帳還款。
 - **零錢規則**：普通支出一律用現金，只有明確指定（例如 `早餐30+5` 或按「＋」）才使用零錢；零錢及零錢筒不可透支；「將零錢全部轉入零錢筒」完全手動。
 - **收入、支出、轉帳、餘額調整**：每筆交易都保存交易前後餘額。
 - **交易紀錄**：按日期、帳戶、類型篩選；可編輯、刪除、撤銷，所有餘額及統計會自動重新計算。

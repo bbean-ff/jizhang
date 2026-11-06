@@ -7,10 +7,10 @@
   'use strict';
 
   /* ---------- 帳戶（付款方式） ---------- */
-  // 內建四個帳戶永遠存在、不可刪除；使用者可另外新增（信用卡、八達通、銀行卡…）
+  // 現金、零錢、零錢筒為內建帳戶；Alipay 為可選帳戶（可在設定啟用／停用）；使用者可另外新增（信用卡、八達通、銀行卡…）
   const BUILTIN = [
     { id: 'cash', name: '現金', short: '現金', kind: 'asset', builtin: true, color: '#d9581c' },
-    { id: 'alipay', name: 'Alipay（支付寶）', short: 'Alipay', kind: 'asset', builtin: true, color: '#1f6fd1' },
+    { id: 'alipay', name: 'Alipay（支付寶）', short: 'Alipay', kind: 'asset', builtin: true, optional: true, color: '#1f6fd1' },
     { id: 'change', name: '零錢', short: '零錢', kind: 'asset', builtin: true, color: '#9a6b00' },
     { id: 'jar', name: '零錢筒', short: '零錢筒', kind: 'asset', builtin: true, color: '#7a5bd6' },
   ];
@@ -20,7 +20,8 @@
   const ACC_IDS = [];
   const NAME = {};
   const ACC = {};
-  function setAccounts(custom) {
+  // off：已停用的可選帳戶 id（停用後保留過往紀錄，只是不再出現在選項中）
+  function setAccounts(custom, off) {
     ACCOUNTS.length = 0; ACC_IDS.length = 0;
     for (const k in NAME) delete NAME[k];
     for (const k in ACC) delete ACC[k];
@@ -28,11 +29,14 @@
       id: a.id, name: a.name, short: a.name, kind: a.kind === 'credit' ? 'credit' : 'asset', builtin: false,
       color: a.color || PALETTE[i % PALETTE.length],
     })));
-    for (const a of list) { ACCOUNTS.push(a); ACC_IDS.push(a.id); NAME[a.id] = a.name; ACC[a.id] = a; }
+    for (const a of list) { if (a.optional && (off || []).includes(a.id)) a.off = true; ACCOUNTS.push(a); ACC_IDS.push(a.id); NAME[a.id] = a.name; ACC[a.id] = a; }
   }
   setAccounts([]);
   // 可用作支出／收入的帳戶（零錢及零錢筒有專用規則，不在此列）
-  const payable = () => ACCOUNTS.filter(a => a.id !== 'change' && a.id !== 'jar');
+  const payable = () => ACCOUNTS.filter(a => !a.off && a.id !== 'change' && a.id !== 'jar');
+  // 目前使用中的帳戶（不含已停用）
+  const active = () => ACCOUNTS.filter(a => !a.off);
+  const isOff = id => !!(ACC[id] && ACC[id].off);
 
   const DEFAULT_INITIAL = { cash: 0, alipay: 0, change: 0, jar: 0 };
   const DEFAULT_QUICK = [10000, 5000, 2000, 1000, 500, 200, 100, 50];
@@ -83,6 +87,7 @@
         shortcuts: DEFAULT_SHORTCUTS.map(s => ({ ...s })),
         shortcutDirect: false, // 點擊有金額的捷徑時直接記賬
         currency: 'HKD',
+        offAcc: ['alipay'], // 新用戶預設不啟用 Alipay
         lang: 'zh-Hant',
       },
       meta: { createdAt: Date.now(), lastExport: null },
@@ -237,6 +242,17 @@
   const RE_EXPENSE = new RegExp('^(.+?)\\s*(A)?\\s*' + NUM + '(?:\\s*\\+\\s*' + NUM + ')?$');
 
   function parse(input) {
+    const r = parse0(input);
+    if (r.ok) {
+      const t = r.tx, ids = t.type === 'transfer' ? [t.from, t.to] : [t.account];
+      const off = ids.find(isOff);
+      if (off) return { ok: false, error: NAME[off] + '已停用，可在「設定 → 付款方式」重新啟用' };
+    }
+    if (!r.ok && r.error === ERR_EXAMPLE && isOff('alipay')) r.error = '看不懂，例子：早餐25、早餐30+5、現金+350、現金設成100';
+    return r;
+  }
+  const ERR_EXAMPLE = '看不懂，例子：早餐25、糖A10、早餐30+5、現金+350、A+100、A設成1.48';
+  function parse0(input) {
     const s = normalize(input);
     if (!s) return { ok: false, error: '' };
     let m;
@@ -266,7 +282,7 @@
       if (tokenToAcc(item)) return { ok: false, error: '收入請輸入「' + item + '+金額」，例如 現金+350' };
       // 「早餐八達通25」：項目後面接付款方式名稱
       if (!m[2]) {
-        const names = ACCOUNTS.filter(a => a.id !== 'jar').map(a => [a.id, a.builtin ? (a.id === 'alipay' ? '支付寶' : a.name) : a.name])
+        const names = ACCOUNTS.filter(a => a.id !== 'jar' && !a.off).map(a => [a.id, a.builtin ? (a.id === 'alipay' ? '支付寶' : a.name) : a.name])
           .sort((x, y) => y[1].length - x[1].length);
         for (const [id, nm] of names) {
           if (item.length > nm.length && item.toLowerCase().endsWith(nm.toLowerCase())) {
@@ -279,7 +295,7 @@
       if (!(amount + change > 0)) return { ok: false, error: '金額必須大於 0' };
       return { ok: true, tx: { type: 'expense', item, account, amount, change } };
     }
-    return { ok: false, error: '看不懂，例子：早餐25、糖A10、早餐30+5、現金+350、A+100、A設成1.48' };
+    return { ok: false, error: ERR_EXAMPLE };
   }
 
   function describe(tx) {
@@ -300,7 +316,7 @@
   }
 
   g.Core = {
-    ACCOUNTS, ACC_IDS, NAME, ACC, BUILTIN, PALETTE, setAccounts, payable,
+    ACCOUNTS, ACC_IDS, NAME, ACC, BUILTIN, PALETTE, setAccounts, payable, active, isOff,
     DEFAULT_INITIAL, DEFAULT_QUICK, DEFAULT_SHORTCUTS, NO_OVERDRAFT, TYPE_NAME,
     CURRENCIES, setCurrency, cur,
     defaultState, toCents, fmt, plain, shortNum, dayKey, monthKey, startOfDay, fmtTime, fmtDateTime,

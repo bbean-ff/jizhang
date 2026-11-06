@@ -19,8 +19,9 @@
   let comp = C.compute(state);
   // 套用帳戶清單、貨幣（載入或匯入資料後呼叫）
   function applyEnv() {
-    C.setAccounts(state.accounts);
+    C.setAccounts(state.accounts, state.settings.offAcc);
     C.setCurrency(state.settings.currency);
+    applyPlaceholders();
   }
   const undoStack = [];
 
@@ -42,10 +43,13 @@
   function migrate(s) {
     const d = C.defaultState();
     if (s.settings && !Array.isArray(s.settings.shortcuts)) delete s.settings.shortcuts;
+    const settings = { ...d.settings, ...(s.settings || {}) };
+    // 舊資料（更新前已在使用）：Alipay 保持啟用，不受影響
+    if (!Array.isArray((s.settings || {}).offAcc)) settings.offAcc = [];
     return {
       ...d, ...s,
       initial: { ...d.initial, ...(s.initial || {}) },
-      settings: { ...d.settings, ...(s.settings || {}) },
+      settings,
       meta: { ...d.meta, ...(s.meta || {}) },
       txs: Array.isArray(s.txs) ? s.txs : [],
       accounts: Array.isArray(s.accounts) ? s.accounts.filter(a => a && a.id && a.name) : [],
@@ -56,6 +60,15 @@
     try { localStorage.setItem(KEY, JSON.stringify(state)); }
     catch (e) { alert('儲存失敗：' + e.message + '\n請盡快匯出備份。'); }
   }
+  // 文字輸入提示：停用 Alipay 時不顯示「A」的例子
+  function applyPlaceholders() {
+    const off = C.isOff('alipay');
+    const set = (sel, v) => { const el = document.querySelector(sel); if (el && el.dataset.ph !== v) { el.dataset.ph = v; el.placeholder = v; } };
+    set('#home-qt input', off ? '早餐25、早餐30+5、現金+350' : '早餐25、糖A10、早餐30+5、現金+350');
+    set('#entry-qt input', off ? '早餐30+5、現金+350、現金設成100' : '早餐30+5、A+100、A設成1.48');
+  }
+  // 已停用的帳戶只在仍有金額時顯示
+  const shown = (a, ...vals) => !a.off || vals.some(v => v);
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
   function newTx(f) {
@@ -227,7 +240,7 @@
     $('#h-total').textContent = fmt(comp.total);
     $('#h-income').textContent = fmt(comp.income);
     $('#h-expense').textContent = fmt(comp.expense);
-    $('#h-accounts').innerHTML = C.ACCOUNTS.map(a => {
+    $('#h-accounts').innerHTML = C.ACCOUNTS.filter(a => shown(a, comp.balances[a.id])).map(a => {
       const v = comp.balances[a.id];
       const credit = a.kind === 'credit';
       return '<button class="acc" data-acc="' + a.id + '"><div class="an"><i class="dot" style="background:' + accColor(a.id) + '"></i><span' + (a.builtin ? '' : ' data-notr') + '>' + esc(a.name) + '</span>' + (credit ? '<em class="acc-tag">信用卡</em>' : '') + '</div>' +
@@ -392,7 +405,7 @@
     $('#quick-grid').innerHTML = qa.map(c => '<button class="qbtn" data-c="' + c + '"><small>' + esc(C.cur()) + '</small>' + (c % 100 === 0 ? c / 100 : C.plain(c)) + '</button>').join('');
   }
   function modeInfo() {
-    if (!C.ACC[qe.account]) qe.account = 'cash';
+    if (!C.ACC[qe.account] || C.ACC[qe.account].off) qe.account = 'cash';
     const acc = qe.account;
     const kind = qe.income ? '收入' : '支出';
     const icon = qe.income ? '＋' : '−';
@@ -411,7 +424,7 @@
     // 付款方式選擇（有自訂付款方式時才顯示）
     const pay = C.payable();
     const accRow = $('#e-accounts');
-    accRow.hidden = pay.length <= 2;
+    accRow.hidden = !pay.some(a => !a.builtin);
     accRow.innerHTML = pay.map(a => '<button class="chip acc-chip' + (a.id === qe.account ? ' on' : '') + '" data-pay="' + a.id + '" style="--ac:' + accColor(a.id) + '"><i class="dot" style="background:' + accColor(a.id) + '"></i><span' + (a.builtin ? '' : ' data-notr') + '>' + esc(a.short) + '</span></button>').join('');
     const bal = comp.balances;
     let sub = '餘額 ' + fmt(bal[qe.account]);
@@ -419,6 +432,7 @@
     $('#mode-banner').innerHTML = '<span class="mb-icon">' + m.icon + '</span><span>' + m.text + '</span><span class="mb-sub">' + sub + '</span>';
     $$('#mode-seg button').forEach(b => b.classList.toggle('on', b.dataset.mode === state.settings.inputMode));
 
+    $('#sp-a').hidden = C.isOff('alipay');
     $('#sp-a').setAttribute('aria-pressed', qe.account === 'alipay');
     $('#sp-plus').setAttribute('aria-pressed', qe.changeOn && !qe.income);
     $('#sp-plus').disabled = qe.income;
@@ -544,7 +558,9 @@
 
   /* ================= 調整餘額 ================= */
   function accOptions(sel, list) {
-    return (list || C.ACC_IDS).map(id => '<option value="' + id + '"' + (id === sel ? ' selected' : '') + (C.ACC[id] && !C.ACC[id].builtin ? ' data-notr' : '') + '>' + esc(NAME[id]) + '</option>').join('');
+    list = list || C.active().map(a => a.id);
+    if (sel && C.ACC[sel] && !list.includes(sel)) list = list.concat(sel); // 舊紀錄用了已停用的帳戶
+    return list.map(id => '<option value="' + id + '"' + (id === sel ? ' selected' : '') + (C.ACC[id] && !C.ACC[id].builtin ? ' data-notr' : '') + '>' + esc(NAME[id]) + '</option>').join('');
   }
   const payIds = () => C.payable().map(a => a.id);
   // 可輸入負數的金額（信用卡欠款、初始餘額）
@@ -632,7 +648,7 @@
     }
     kv += '<dt>備註</dt><dd>' + esc(t.note || '—') + '</dd>';
     const tbl = '<table class="bal-table"><thead><tr><th>帳戶</th><th>交易前</th><th>交易後</th><th>變化</th></tr></thead><tbody>' +
-      C.ACCOUNTS.map(a => '<tr class="' + (r.delta[a.id] ? 'hl' : '') + '"><td>' + esc(a.name) + '</td><td>' + fmt(r.before[a.id]) + '</td><td>' + fmt(r.after[a.id]) + '</td><td>' + (r.delta[a.id] ? fmt(r.delta[a.id], { sign: true }) : '—') + '</td></tr>').join('') +
+      C.ACCOUNTS.filter(a => shown(a, r.before[a.id], r.after[a.id])).map(a => '<tr class="' + (r.delta[a.id] ? 'hl' : '') + '"><td>' + esc(a.name) + '</td><td>' + fmt(r.before[a.id]) + '</td><td>' + fmt(r.after[a.id]) + '</td><td>' + (r.delta[a.id] ? fmt(r.delta[a.id], { sign: true }) : '—') + '</td></tr>').join('') +
       '<tr class="hl"><td>總資產</td><td>' + fmt(r.totalBefore) + '</td><td>' + fmt(r.totalAfter) + '</td><td>' + (r.totalAfter - r.totalBefore ? fmt(r.totalAfter - r.totalBefore, { sign: true }) : '—') + '</td></tr></tbody></table>';
     openSheet(C.TYPE_NAME[t.type] + '詳情',
       '<div class="form"><dl class="kv">' + kv + '</dl>' + tbl +
@@ -750,7 +766,7 @@
   }
   function renderRecords() {
     if (rf.acc && !C.ACC[rf.acc]) rf.acc = '';
-    $('#r-acc').innerHTML = '<option value="">全部帳戶</option>' + accOptions(rf.acc);
+    $('#r-acc').innerHTML = '<option value="">全部帳戶</option>' + accOptions(rf.acc, C.ACCOUNTS.filter(a => !a.off || state.txs.some(t => C.involves(t, a.id))).map(a => a.id));
     $('#r-acc').value = rf.acc;
     $$('#r-range button').forEach(b => b.classList.toggle('on', b.dataset.r === rf.range));
     $('#r-custom').hidden = rf.range !== 'custom';
@@ -886,7 +902,7 @@
     const catMax = catList.length ? catList[0][1] : 1;
 
     const accTbl = '<table class="bal-table"><thead><tr><th>帳戶</th><th>期初</th><th>期末</th><th>變化</th></tr></thead><tbody>' +
-      C.ACCOUNTS.map(a => { const d = st.endBal[a.id] - st.startBal[a.id]; return '<tr><td>' + esc(a.name) + '</td><td>' + fmt(st.startBal[a.id]) + '</td><td>' + fmt(st.endBal[a.id]) + '</td><td class="' + (d > 0 ? 'pos' : d < 0 ? 'neg' : '') + '">' + (d ? fmt(d, { sign: true }) : '—') + '</td></tr>'; }).join('') +
+      C.ACCOUNTS.filter(a => shown(a, st.startBal[a.id], st.endBal[a.id])).map(a => { const d = st.endBal[a.id] - st.startBal[a.id]; return '<tr><td>' + esc(a.name) + '</td><td>' + fmt(st.startBal[a.id]) + '</td><td>' + fmt(st.endBal[a.id]) + '</td><td class="' + (d > 0 ? 'pos' : d < 0 ? 'neg' : '') + '">' + (d ? fmt(d, { sign: true }) : '—') + '</td></tr>'; }).join('') +
       (() => { const s0 = C.ACC_IDS.reduce((s, k) => s + st.startBal[k], 0), s1 = C.ACC_IDS.reduce((s, k) => s + st.endBal[k], 0); return '<tr class="hl"><td>總資產</td><td>' + fmt(s0) + '</td><td>' + fmt(s1) + '</td><td>' + (s1 - s0 ? fmt(s1 - s0, { sign: true }) : '—') + '</td></tr>'; })() +
       '</tbody></table>';
 
@@ -1015,15 +1031,17 @@
       '<div class="set-row"><span class="sr-l">持久儲存<div class="sr-d">資料保存在本機（此瀏覽器／主畫面 App）</div></span><span class="label">' + (persisted === true ? '✓ 已啟用' : persisted === false ? '未獲授權' : '—') + '</span></div>' +
       '</div></div>' +
       '<div class="set-section" id="set-acc"><h3>付款方式／帳戶</h3><div class="card">' +
-      C.ACCOUNTS.map(a => a.builtin
+      C.ACCOUNTS.map(a => a.optional
+        ? '<div class="set-row"><span class="sr-l"><i class="dot" style="background:' + accColor(a.id) + '"></i> ' + esc(a.name) + '<div class="sr-d">' + (a.off ? '未啟用' : '使用中 · ' + fmt(comp.balances[a.id] || 0)) + '</div></span><button class="btn small' + (a.off ? ' primary' : '') + '" data-acc-toggle="' + a.id + '">' + (a.off ? '啟用' : '停用') + '</button></div>'
+        : a.builtin
         ? '<div class="set-row"><span class="sr-l"><i class="dot" style="background:' + accColor(a.id) + '"></i> ' + esc(a.name) + '</span><span class="label">內建</span></div>'
         : '<div class="qa-item"><button class="sc-row" data-acc-edit="' + esc(a.id) + '"><i class="dot" style="background:' + accColor(a.id) + '"></i><b data-notr>' + esc(a.name) + '</b><small>' + (a.kind === 'credit' ? '信用卡' : '一般帳戶') + ' · ' + fmt(comp.balances[a.id] || 0) + '</small></button>' +
           '<button class="icon-btn del" data-acc-del="' + esc(a.id) + '" aria-label="刪除">✕</button></div>').join('') +
       '<div class="btn-col" style="margin-top:10px"><button class="btn primary" data-acc-new>＋ 新增付款方式</button></div>' +
-      '<div class="sr-d" style="margin-top:8px">例如：信用卡、八達通、銀行卡、微信支付、PayMe。內建的四個帳戶不會受影響。</div>' +
+      '<div class="sr-d" style="margin-top:8px">例如：信用卡、八達通、銀行卡、微信支付、PayMe。現金、零錢、零錢筒為內建帳戶；Alipay 可按需要啟用或停用。</div>' +
       '</div></div>' +
       '<div class="set-section"><h3>初始餘額</h3><div class="card">' +
-      C.ACCOUNTS.map(a => '<div class="set-row"><span' + (a.builtin ? '' : ' data-notr') + '>' + esc(a.name) + '</span><span>' + fmt(state.initial[a.id] || 0) + '</span></div>').join('') +
+      C.ACCOUNTS.filter(a => shown(a, state.initial[a.id])).map(a => '<div class="set-row"><span' + (a.builtin ? '' : ' data-notr') + '>' + esc(a.name) + '</span><span>' + fmt(state.initial[a.id] || 0) + '</span></div>').join('') +
       '<div class="set-row"><span><b>初始總資產</b></span><b>' + fmt(comp.initialTotal) + '</b></div>' +
       '<button class="btn" id="init-edit" style="width:100%;margin-top:6px">修改初始餘額</button></div></div>' +
       '<div class="set-section"><h3>其他</h3><div class="card">' +
@@ -1067,6 +1085,7 @@
     else if (b.dataset.accEdit) openAccountEdit(b.dataset.accEdit);
     else if (b.dataset.accNew !== undefined) openAccountEdit(null);
     else if (b.dataset.accDel) deleteAccount(b.dataset.accDel);
+    else if (b.dataset.accToggle) toggleAccount(b.dataset.accToggle);
     else if (b.id === 'ex-json') exportJSON();
     else if (b.id === 'ex-csv') exportCSV();
     else if (b.id === 'im-json') $('#im-file').click();
@@ -1157,6 +1176,23 @@
         });
       });
   }
+  // 啟用／停用可選帳戶（Alipay）：停用後過往紀錄保留，只是不再出現在選項中
+  function toggleAccount(id) {
+    const off = state.settings.offAcc || (state.settings.offAcc = []);
+    const name = NAME[id];
+    if (off.includes(id)) {
+      state.settings.offAcc = off.filter(x => x !== id);
+      save(); applyEnv(); refresh(); toast('已啟用' + name);
+      return;
+    }
+    const bal = comp.balances[id] || 0;
+    if (bal !== 0) { alert(name + '目前仍有餘額 ' + fmt(bal) + '，不能停用。\n請先用「帳戶間轉帳」或「調整帳戶餘額」把餘額變成 0。'); return; }
+    if (!confirm('停用' + name + '？\n過往紀錄會保留，之後可以隨時重新啟用。')) return;
+    off.push(id);
+    state.settings.shortcuts.forEach(sc => { if (sc.account === id) sc.account = 'cash'; });
+    if (qe.account === id) qe.account = 'cash';
+    save(); applyEnv(); refresh(); toast('已停用' + name);
+  }
   function deleteAccount(id) {
     const a = state.accounts.find(x => x.id === id);
     if (!a) return;
@@ -1173,13 +1209,13 @@
 
   function openInitial() {
     openSheet('修改初始餘額',
-      '<form class="form" id="init-f">' + C.ACCOUNTS.map(a => { const cr = a.kind === 'credit'; const v = state.initial[a.id] || 0; return '<div><label class="field-label"><span' + (a.builtin ? '' : ' data-notr') + '>' + esc(a.name) + '</span>' + (cr ? '（欠款，輸入正數）' : '') + '</label><input class="input" name="' + a.id + '" inputmode="decimal" value="' + C.plain(cr ? -v : v) + '"></div>'; }).join('') +
+      '<form class="form" id="init-f">' + C.ACCOUNTS.filter(a => shown(a, state.initial[a.id])).map(a => { const cr = a.kind === 'credit'; const v = state.initial[a.id] || 0; return '<div><label class="field-label"><span' + (a.builtin ? '' : ' data-notr') + '>' + esc(a.name) + '</span>' + (cr ? '（欠款，輸入正數）' : '') + '</label><input class="input" name="' + a.id + '" inputmode="decimal" value="' + C.plain(cr ? -v : v) + '"></div>'; }).join('') +
       '<div class="notice warn">修改初始餘額會影響所有餘額計算。若只是想更正目前餘額，請使用「調整帳戶餘額」。</div>' +
       '<div class="form-actions"><button type="button" class="btn" data-close>取消</button><button class="btn primary" type="submit">儲存</button></div></form>',
       body => body.querySelector('#init-f').addEventListener('submit', e => {
         e.preventDefault();
         const f = e.target, ni = {};
-        for (const id of C.ACC_IDS) { const v = sCents(f[id].value); if (Number.isNaN(v)) { alert(NAME[id] + '金額格式不正確'); return; } ni[id] = C.ACC[id].kind === 'credit' ? -v : v; }
+        for (const id of C.ACC_IDS) { if (!f[id]) { ni[id] = state.initial[id] || 0; continue; } const v = sCents(f[id].value); if (Number.isNaN(v)) { alert(NAME[id] + '金額格式不正確'); return; } ni[id] = C.ACC[id].kind === 'credit' ? -v : v; }
         const r = C.compute({ ...state, initial: ni });
         if (r.problems.some(p => p.hard)) { alert('這樣設定會令零錢或零錢筒出現負數，請檢查。'); return; }
         commit(state.txs, '已修改初始餘額', () => { state.initial = ni; });
