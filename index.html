@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-Hant-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>記賬</title>
+<meta name="description" content="個人記賬小工具（港幣 HKD）">
+<meta name="theme-color" content="#f4f4f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0f0e" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="記賬">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <nav class="tabbar" id="tabbar">
+    <div class="brand">記賬</div>
+    <a href="#home" data-tab="home"><span class="ti">⌂</span><span>首頁</span></a>
+    <a href="#entry" data-tab="entry"><span class="ti">✎</span><span>記賬</span></a>
+    <a href="#records" data-tab="records"><span class="ti">☰</span><span>紀錄</span></a>
+    <a href="#stats" data-tab="stats"><span class="ti">▥</span><span>統計</span></a>
+    <a href="#settings" data-tab="settings"><span class="ti">⚙</span><span>設定</span></a>
+  </nav>
+
+  <main id="main">
+    <!-- 首頁 -->
+    <section class="view" id="view-home">
+      <header class="page-head"><h1>記賬</h1><span class="sub" id="home-date"></span></header>
+      <div class="home-grid">
+        <div class="col">
+          <div class="card hero">
+            <div class="label">總資產</div>
+            <div class="hero-num" id="h-total"></div>
+            <div class="hero-sub">
+              <div><span>累計收入</span><b id="h-income" class="pos"></b></div>
+              <div><span>累計支出</span><b id="h-expense" class="neg"></b></div>
+            </div>
+          </div>
+          <div class="acc-grid" id="h-accounts"></div>
+          <div class="stat-row">
+            <div class="card mini"><div class="label">今日支出</div><div class="num" id="h-today"></div></div>
+            <div class="card mini"><div class="label">本月支出</div><div class="num" id="h-month"></div></div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card">
+            <div class="card-title">快速輸入</div>
+            <form class="qt" id="home-qt" autocomplete="off">
+              <input type="text" enterkeyhint="done" placeholder="早餐25、糖A10、早餐30+5、現金+350">
+              <button type="submit" class="btn primary">記賬</button>
+            </form>
+            <div class="qt-preview" id="home-qt-preview"></div>
+          </div>
+          <div class="actions">
+            <button class="act" data-act="entry"><span class="ai">✎</span>快速記賬</button>
+            <button class="act inc" data-act="income"><span class="ai">＋</span>收入</button>
+            <button class="act exp" data-act="expense"><span class="ai">−</span>支出</button>
+            <button class="act" data-act="jar" id="act-jar"><span class="ai">⇢</span><span>將零錢全部轉入零錢筒</span></button>
+            <button class="act" data-act="adjust"><span class="ai">±</span>調整帳戶餘額</button>
+            <button class="act" data-act="transfer"><span class="ai">⇄</span>帳戶間轉帳</button>
+          </div>
+          <div class="card">
+            <div class="card-title">最近紀錄 <a href="#records" class="more">全部 ›</a></div>
+            <div id="h-recent" class="tx-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 快速記賬 -->
+    <section class="view" id="view-entry">
+      <header class="page-head"><h1>快速記賬</h1>
+        <div class="seg" id="mode-seg">
+          <button data-mode="add">累加</button><button data-mode="set">直接設定</button>
+        </div>
+      </header>
+      <div class="entry-grid">
+        <div class="col">
+          <div class="mode-banner" id="mode-banner"></div>
+          <div class="card">
+            <label class="field-label" for="e-item">項目</label>
+            <input type="text" id="e-item" class="input" placeholder="例如：早餐（可留空）" autocomplete="off" enterkeyhint="done">
+            <div class="chips" id="e-recent"></div>
+          </div>
+          <div class="card amount-panel" id="amount-panel">
+            <div class="amt-row" data-field="main" id="amt-main-row">
+              <span class="amt-label" id="amt-main-label">現金</span>
+              <input class="amt-input" id="amt-main" inputmode="decimal" placeholder="0.00" autocomplete="off">
+            </div>
+            <div class="amt-row change" data-field="change" id="amt-change-row" hidden>
+              <span class="amt-label">零錢</span>
+              <input class="amt-input" id="amt-change" inputmode="decimal" placeholder="0.00" autocomplete="off">
+            </div>
+            <div class="amt-total" id="amt-total"></div>
+            <div class="amt-hint" id="amt-hint"></div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="quick-grid" id="quick-grid"></div>
+          <div class="special-row">
+            <button class="sp" id="sp-a" aria-pressed="false"><b>A</b><small>Alipay</small></button>
+            <button class="sp" id="sp-plus" aria-pressed="false"><b>＋</b><small>零錢</small></button>
+            <button class="sp" id="sp-inc" aria-pressed="false"><b>＋1</b><small>收入</small></button>
+            <button class="sp" id="sp-clear"><b>C</b><small>清除</small></button>
+          </div>
+          <button class="btn big" id="e-submit">記賬</button>
+          <div class="card">
+            <div class="card-title">文字快速輸入</div>
+            <form class="qt" id="entry-qt" autocomplete="off">
+              <input type="text" enterkeyhint="done" placeholder="早餐30+5、A+100、A設成1.48">
+              <button type="submit" class="btn primary">記賬</button>
+            </form>
+            <div class="qt-preview" id="entry-qt-preview"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 紀錄 -->
+    <section class="view" id="view-records">
+      <header class="page-head"><h1>交易紀錄</h1>
+        <div class="head-btns">
+          <button class="btn small" id="r-undo">↶ 撤銷</button>
+          <button class="btn small primary" id="r-new">＋ 詳細記賬</button>
+        </div>
+      </header>
+      <div class="filters">
+        <div class="seg scroll" id="r-range">
+          <button data-r="all">全部</button><button data-r="today">今日</button><button data-r="week">本週</button><button data-r="month">本月</button><button data-r="custom">自訂</button>
+        </div>
+        <div class="filter-row" id="r-custom" hidden>
+          <input type="date" id="r-from" class="input"> <span>至</span> <input type="date" id="r-to" class="input">
+        </div>
+        <div class="filter-row">
+          <select id="r-acc" class="input">
+            <option value="">全部帳戶</option>
+            <option value="cash">現金</option><option value="alipay">Alipay（支付寶）</option><option value="change">零錢</option><option value="jar">零錢筒</option>
+          </select>
+          <select id="r-type" class="input">
+            <option value="">全部類型</option>
+            <option value="expense">支出</option><option value="income">收入</option><option value="transfer">轉帳</option><option value="adjust">餘額調整</option>
+          </select>
+        </div>
+      </div>
+      <div class="r-summary" id="r-summary"></div>
+      <div id="r-list"></div>
+    </section>
+
+    <!-- 統計 -->
+    <section class="view" id="view-stats">
+      <header class="page-head"><h1>統計</h1></header>
+      <div class="filters">
+        <div class="seg scroll" id="s-range">
+          <button data-r="month">本月</button><button data-r="lastmonth">上月</button><button data-r="7d">近7日</button><button data-r="30d">近30日</button><button data-r="year">今年</button><button data-r="all">全部</button><button data-r="custom">自訂</button>
+        </div>
+        <div class="filter-row" id="s-custom" hidden>
+          <input type="date" id="s-from" class="input"> <span>至</span> <input type="date" id="s-to" class="input">
+        </div>
+      </div>
+      <div id="s-body"></div>
+    </section>
+
+    <!-- 設定 -->
+    <section class="view" id="view-settings">
+      <header class="page-head"><h1>設定</h1></header>
+      <div id="set-body"></div>
+    </section>
+  </main>
+</div>
+
+<div class="sheet-wrap" id="sheet" hidden>
+  <div class="sheet-bg" data-close></div>
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-head"><h2 id="sheet-title"></h2><button class="x" data-close aria-label="關閉">✕</button></div>
+    <div class="sheet-body" id="sheet-body"></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<div class="tip" id="tip" hidden></div>
+
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
