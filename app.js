@@ -75,14 +75,15 @@
     state.seq += 1;
     return {
       id: uid(), no: state.seq, time: f.time || Date.now(), type: f.type, item: f.item || '',
-      account: f.account, amount: f.amount, change: f.change, from: f.from, to: f.to, target: f.target,
+      account: f.account, amount: f.amount, change: f.change, back: f.back, from: f.from, to: f.to, target: f.target,
       note: f.note || '', createdAt: Date.now(),
     };
   }
   function clean(tx) { // 移除沒用的欄位
     const o = {};
     for (const k in tx) if (tx[k] !== undefined) o[k] = tx[k];
-    if (o.type !== 'expense') delete o.change;
+    if (o.type !== 'expense') { delete o.change; delete o.back; }
+    if (!(o.back > 0)) delete o.back;
     return o;
   }
 
@@ -117,7 +118,16 @@
     commit(newTxs, label);
     return true;
   }
+  // 港幣找續：現金支出以整十元支付，找續存入零錢（只在建立新交易時計算，舊紀錄不受影響）
+  function withBack(tx) {
+    if (tx.type === 'expense' && tx.account === 'cash' && state.settings.autoBack && tx.back === undefined) {
+      const b = C.cashBack(tx.amount);
+      if (b) return { ...tx, back: b };
+    }
+    return tx;
+  }
   function addTx(fields) {
+    fields = withBack(fields);
     if (fields.type === 'expense' && fields.change > 0 && fields.change > comp.balances.change && !fields.time) {
       alert('零錢不足，不可透支。\n\n目前零錢：' + fmt(comp.balances.change) + '\n需要零錢：' + fmt(fields.change));
       return false;
@@ -176,9 +186,10 @@
     return base;
   }
   function payText(t) {
-    if (t.change > 0 && t.amount > 0) return NAME[t.account] + ' ＋ 零錢 ' + fmt(t.change);
+    const back = t.back > 0 ? '，找續 ' + fmt(t.back) : '';
+    if (t.change > 0 && t.amount > 0) return NAME[t.account] + ' ＋ 零錢 ' + fmt(t.change) + back;
     if (t.change > 0) return '零錢';
-    return NAME[t.account];
+    return NAME[t.account] + (back ? ' ' + fmt(t.amount + t.back) + back : '');
   }
   function txRowHtml(r, opt) {
     opt = opt || {};
@@ -366,7 +377,7 @@
     const upd = () => {
       const r = C.parse(input.value);
       preview.className = 'qt-preview' + (r.ok ? ' ok' : r.error ? ' err' : '');
-      preview.textContent = r.ok ? '✓ ' + describeWithBalance(r.tx) : (r.error || '');
+      preview.textContent = r.ok ? '✓ ' + describeWithBalance(withBack(r.tx)) : (r.error || '');
     };
     input.addEventListener('input', upd);
     form.addEventListener('submit', e => {
@@ -453,12 +464,14 @@
     if (qe.income) tot = '收入 <b>' + fmt(qe.main) + '</b>';
     else if (showChange) tot = esc(accShort(qe.account)) + ' ' + fmt(qe.main) + ' ＋ 零錢 ' + fmt(qe.change) + '　總支出 <b>' + fmt(total) + '</b>';
     else tot = '總支出 <b>' + fmt(total) + '</b>';
+    const back = qe.income ? 0 : withBack({ type: 'expense', account: qe.account, amount: qe.main }).back || 0;
+    if (back) tot += '<div class="amt-back">' + esc(accShort(qe.account)) + '付 ' + fmt(qe.main + back) + '，找續 ' + fmt(back) + ' 存入零錢</div>';
     $('#amt-total').innerHTML = tot;
 
     const hint = $('#amt-hint');
     hint.className = 'amt-hint'; hint.textContent = '';
     if (!qe.income && change > bal.change) { hint.className = 'amt-hint err'; hint.textContent = '⚠ 零錢不足（目前 ' + fmt(bal.change) + '），不可透支'; }
-    else if (!qe.income && qe.main > bal[qe.account] && C.ACC[qe.account].kind !== 'credit') { hint.className = 'amt-hint warn'; hint.textContent = '⚠ ' + NAME[qe.account] + '餘額不足（目前 ' + fmt(bal[qe.account]) + '）'; }
+    else if (!qe.income && qe.main + back > bal[qe.account] && C.ACC[qe.account].kind !== 'credit') { hint.className = 'amt-hint warn'; hint.textContent = '⚠ ' + NAME[qe.account] + '餘額不足（目前 ' + fmt(bal[qe.account]) + '）'; }
     else if (showChange && qe.active === 'change') { hint.textContent = '正在輸入零錢金額，再按「＋」可取消零錢'; hint.className = 'amt-hint warn'; }
 
     const btn = $('#e-submit');
@@ -638,7 +651,12 @@
     let kv = '<dt>交易編號</dt><dd>#' + t.no + '</dd><dt>日期時間</dt><dd>' + C.fmtDateTime(t.time) + '</dd><dt>交易類型</dt><dd>' + C.TYPE_NAME[t.type] + '</dd><dt>項目</dt><dd>' + esc(t.item || '—') + '</dd>';
     if (t.type === 'expense') {
       kv += '<dt>總支出</dt><dd><b>' + fmt(C.txTotal(t)) + '</b></dd><dt>支付帳戶</dt><dd>' + esc(t.amount > 0 ? NAME[t.account] : '零錢') + '</dd>';
-      kv += '<dt>支付拆分</dt><dd>' + (t.change > 0 ? (t.amount > 0 ? esc(NAME[t.account]) + ' ' + fmt(t.amount) + '<br>' : '') + '零錢 ' + fmt(t.change) : esc(NAME[t.account]) + ' ' + fmt(t.amount)) + '</dd>';
+      const back = t.back || 0;
+      kv += '<dt>支付拆分</dt><dd>' + [
+        t.amount > 0 || !t.change ? esc(NAME[t.account]) + ' ' + fmt(t.amount + back) : '',
+        t.change > 0 ? '零錢 ' + fmt(t.change) : '',
+        back ? '找續 ' + fmt(back) + ' → 零錢' : '',
+      ].filter(Boolean).join('<br>') + '</dd>';
     } else if (t.type === 'income') {
       kv += '<dt>收入金額</dt><dd><b>' + fmt(t.amount) + '</b></dd><dt>收入帳戶</dt><dd>' + esc(NAME[t.account]) + '</dd>';
     } else if (t.type === 'transfer') {
@@ -686,7 +704,8 @@
       '<div data-g="expense income transfer"><label class="field-label">項目</label><input class="input" name="item" value="' + esc(t.item) + '"></div>' +
       '<div data-g="expense" class="row2"><div><label class="field-label">支付帳戶</label><select class="input" name="eacc">' + accOptions(t.type === 'expense' ? t.account : 'cash', payIds()) + '</select></div>' +
       '<div><label class="field-label">金額</label><input class="input" name="eamt" inputmode="decimal" value="' + v(t.type === 'expense' ? t.amount : 0) + '"></div></div>' +
-      '<div data-g="expense"><label class="field-label">零錢支付金額（可留空）</label><input class="input" name="echange" inputmode="decimal" value="' + v(t.type === 'expense' ? t.change : 0) + '"></div>' +
+      '<div data-g="expense" class="row2"><div><label class="field-label">零錢支付金額（可留空）</label><input class="input" name="echange" inputmode="decimal" value="' + v(t.type === 'expense' ? t.change : 0) + '"></div>' +
+      '<div><label class="field-label">找續存入零錢</label><input class="input" name="eback" inputmode="decimal" value="' + v(t.type === 'expense' ? t.back : 0) + '"></div></div>' +
       '<div data-g="income" class="row2"><div><label class="field-label">收入帳戶</label><select class="input" name="iacc">' + accOptions(t.type === 'income' ? t.account : 'cash', payIds()) + '</select></div>' +
       '<div><label class="field-label">金額</label><input class="input" name="iamt" inputmode="decimal" value="' + v(t.type === 'income' ? t.amount : 0) + '"></div></div>' +
       '<div data-g="transfer" class="row2"><div><label class="field-label">轉出</label><select class="input" name="tfrom">' + accOptions(t.type === 'transfer' ? t.from : 'change') + '</select></div>' +
@@ -701,6 +720,13 @@
         const f = body.querySelector('#ed');
         const showGroups = () => body.querySelectorAll('[data-g]').forEach(el => { el.hidden = !el.dataset.g.split(' ').includes(f.type.value); });
         f.type.addEventListener('change', showGroups); showGroups();
+        // 改金額或付款帳戶時，自動重新計算找續
+        const autoBack = () => {
+          const a = C.toCents(f.eamt.value.trim() || '0');
+          const b = Number.isNaN(a) ? 0 : (withBack({ type: 'expense', account: f.eacc.value, amount: a }).back || 0);
+          f.eback.value = b ? C.plain(b) : '';
+        };
+        f.eamt.addEventListener('input', autoBack); f.eacc.addEventListener('change', autoBack);
         f.addEventListener('submit', e => {
           e.preventDefault();
           const type = f.type.value;
@@ -711,9 +737,9 @@
           const amt = name => { const s = f[name].value.trim(); return s === '' ? 0 : C.toCents(s); };
           let tx;
           if (type === 'expense') {
-            const a = amt('eamt'), c = amt('echange');
-            if (Number.isNaN(a) || Number.isNaN(c) || a + c <= 0) { alert('請輸入正確金額'); return; }
-            tx = { ...base, account: f.eacc.value, amount: a, change: c, item: base.item || '其他' };
+            const a = amt('eamt'), c = amt('echange'), bk = amt('eback');
+            if (Number.isNaN(a) || Number.isNaN(c) || Number.isNaN(bk) || a + c <= 0) { alert('請輸入正確金額'); return; }
+            tx = { ...base, account: f.eacc.value, amount: a, change: c, back: bk, item: base.item || '其他' };
           } else if (type === 'income') {
             const a = amt('iamt');
             if (!(a > 0)) { alert('請輸入正確金額'); return; }
@@ -1013,6 +1039,7 @@
       '</div></div>' +
       '<div class="set-section"><h3>記賬</h3><div class="card">' +
       '<div class="set-row"><span class="sr-l">金額輸入模式<div class="sr-d">累加：20+10+5=35；直接設定：按 20 即 20</div></span><div class="seg" id="set-mode"><button data-mode="add" class="' + (s.inputMode === 'add' ? 'on' : '') + '">累加</button><button data-mode="set" class="' + (s.inputMode === 'set' ? 'on' : '') + '">直接設定</button></div></div>' +
+      '<div class="set-row"><span class="sr-l">現金自動找續（港幣）<div class="sr-d">現金以整十元支付，例如買 $82 當作付 $90，找續 $8 存入零錢。要用零錢付款，請輸入「80+2」。</div></span><label class="switch"><input type="checkbox" id="set-back"' + (s.autoBack ? ' checked' : '') + '><span></span></label></div>' +
       '<div class="set-row"><span class="sr-l">記賬後重設為「現金支出」<div class="sr-d">關閉後會保留 A／收入模式</div></span><label class="switch"><input type="checkbox" id="set-reset"' + (s.resetAfter ? ' checked' : '') + '><span></span></label></div>' +
       '</div></div>' +
       '<div class="set-section"><h3>外觀</h3><div class="card"><div class="set-row"><span>深色／淺色模式</span><div class="seg" id="set-theme">' +
@@ -1104,6 +1131,7 @@
       if (!(v > 0)) { toast('請輸入正確金額'); el.value = C.plain(qa[+el.dataset.qi]); return; }
       qa[+el.dataset.qi] = v; setQuick(qa); toast('已更新快捷金額');
     } else if (el.id === 'set-reset') { state.settings.resetAfter = el.checked; save(); }
+    else if (el.id === 'set-back') { state.settings.autoBack = el.checked; save(); toast(el.checked ? '已開啟現金自動找續' : '已關閉現金自動找續'); }
     else if (el.id === 'set-cur') { state.settings.currency = el.value; save(); applyEnv(); quickSig = ''; refresh(); toast('已更改貨幣符號'); }
     else if (el.id === 'set-scdirect') { state.settings.shortcutDirect = el.checked; save(); }
     else if (el.id === 'im-file') { importFile(el.files[0]); el.value = ''; }
@@ -1250,7 +1278,7 @@
   }
   async function exportCSV() {
     const q = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const head = ['交易編號', '日期時間', '交易類型', '項目', '金額', '支付/收入帳戶', '主要帳戶金額', '零錢金額', '轉出帳戶', '轉入帳戶', '調整前餘額', '調整後餘額', '調整金額', '備註']
+    const head = ['交易編號', '日期時間', '交易類型', '項目', '金額', '支付/收入帳戶', '主要帳戶金額', '零錢金額', '找續存入零錢', '轉出帳戶', '轉入帳戶', '調整前餘額', '調整後餘額', '調整金額', '備註']
       .concat(C.ACCOUNTS.flatMap(a => ['交易前-' + a.name, '交易後-' + a.name]), ['交易前總資產', '交易後總資產']);
     const lines = [head.map(q).join(',')];
     for (const r of comp.rows) {
@@ -1258,7 +1286,7 @@
       const row = [t.no, C.fmtDateTime(t.time), C.TYPE_NAME[t.type], t.item,
         t.type === 'adjust' ? P(r.delta[t.account]) : P(C.txTotal(t)),
         t.type === 'expense' || t.type === 'income' || t.type === 'adjust' ? NAME[t.account] : '',
-        t.type === 'expense' ? P(t.amount) : '', t.type === 'expense' ? P(t.change || 0) : '',
+        t.type === 'expense' ? P(t.amount) : '', t.type === 'expense' ? P(t.change || 0) : '', t.type === 'expense' ? P(t.back || 0) : '',
         t.type === 'transfer' ? NAME[t.from] : '', t.type === 'transfer' ? NAME[t.to] : '',
         t.type === 'adjust' ? P(r.before[t.account]) : '', t.type === 'adjust' ? P(r.after[t.account]) : '', t.type === 'adjust' ? P(r.delta[t.account]) : '',
         t.note].concat(C.ACC_IDS.flatMap(k => [P(r.before[k]), P(r.after[k])]), [P(r.totalBefore), P(r.totalAfter)]);

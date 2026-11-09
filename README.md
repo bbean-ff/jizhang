@@ -27,6 +27,7 @@ A simple, fast, private expense tracker for iPhone & iPad — works offline, no 
 - **Type it in one line** — `早餐25` (breakfast $25, cash), `糖A10` (paid by Alipay, if enabled), `早餐30+5` (cash $30 + loose change $5), `現金+350` (cash income), `A設成1.48` (set Alipay balance to 1.48).
 - **Shortcuts** — one-tap presets for things you buy often (breakfast, lunch, water, transport…) and regular income (salary, pocket money). Add your own, with or without a preset amount.
 - **Accounts & payment methods** — built-in Cash, Change and Coin jar; Alipay is optional (turn it on in *Settings → Payment methods*); plus your own: Octopus, bank card, WeChat Pay, PayMe… **Credit cards** track debt (negative balance) and are repaid with a transfer.
+- **Hong Kong cash change** — cash is paid in multiples of $10, like real banknotes: buying something for $82 counts as paying $90, and the $8 in coins goes into *Change*. To pay with coins, type `80+2`. Can be turned off in Settings.
 - **Income, expense, transfer, balance adjustment** — every change is recorded with before/after balances.
 - **Records** — filter by date, account and type; edit, delete or undo any transaction. All balances and totals are recalculated automatically.
 - **Statistics** — daily/monthly spending, monthly income vs expense charts, spending by item, account changes, and a reconciliation check (`total = opening + income − expense ± adjustments`).
@@ -90,6 +91,7 @@ No accounts, no analytics, no tracking, no server. Everything is saved in your b
 - **常用捷徑**：早餐、午餐、晚餐、買水、交通、零用錢、薪金等，一按即填入；可自行新增、編輯、排序，並可設定預設金額。
 - **帳戶及付款方式**：內建現金、零錢、零錢筒；Alipay（支付寶）為可選帳戶，可在「設定 → 付款方式」啟用或停用；另可自行新增八達通、銀行卡、微信支付、PayMe 等；**信用卡**會記錄欠款，以轉帳還款。
 - **零錢規則**：普通支出一律用現金，只有明確指定（例如 `早餐30+5` 或按「＋」）才使用零錢；零錢及零錢筒不可透支；「將零錢全部轉入零錢筒」完全手動。
+- **港幣找續**：現金以整十元支付，例如買 $82 當作付 $90，找續的 $8 硬幣自動存入零錢；要用零錢付款，請輸入 `80+2`。可在設定關閉。
 - **收入、支出、轉帳、餘額調整**：每筆交易都保存交易前後餘額。
 - **交易紀錄**：按日期、帳戶、類型篩選；可編輯、刪除、撤銷，所有餘額及統計會自動重新計算。
 - **統計**：每日／每月支出、每月收入與支出圖表、支出分類、各帳戶資金變化、資產核對（總資產 = 初始總資產 ＋ 累計收入 − 累計支出 ± 調整）。

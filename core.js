@@ -87,6 +87,7 @@
         shortcuts: DEFAULT_SHORTCUTS.map(s => ({ ...s })),
         shortcutDirect: false, // 點擊有金額的捷徑時直接記賬
         currency: 'HKD',
+        autoBack: true, // 港幣制度：現金以整十元支付，找續的硬幣存入零錢
         offAcc: ['alipay'], // 新用戶預設不啟用 Alipay
         lang: 'zh-Hant',
       },
@@ -125,6 +126,16 @@
   function fmtTime(t) { const d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
   function fmtDateTime(t) { const d = new Date(t); return d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + ' ' + fmtTime(t); }
 
+  /* ---------- 港幣找續 ----------
+   * 現金（紙幣）以整十元支付，不足十元的找續（硬幣）存入零錢。
+   * 例如付 $82 → 現金付 $90，找續 $8 存入零錢；要用零錢付款須明確輸入「80+2」。 */
+  const NOTE_UNIT = 1000;
+  function cashBack(amount) {
+    if (!(amount > 0)) return 0;
+    const r = amount % NOTE_UNIT;
+    return r ? NOTE_UNIT - r : 0;
+  }
+
   /* ---------- 交易效果 ---------- */
   function txTotal(tx) {
     if (tx.type === 'expense') return tx.amount + (tx.change || 0);
@@ -135,7 +146,11 @@
     const d = {};
     const add = (k, v) => { d[k] = (d[k] || 0) + v; };
     switch (tx.type) {
-      case 'expense': add(tx.account, -tx.amount); if (tx.change) add('change', -tx.change); break;
+      case 'expense':
+        add(tx.account, -tx.amount - (tx.back || 0)); // 實際付出 = 金額 + 找續
+        if (tx.change) add('change', -tx.change);
+        if (tx.back) add('change', tx.back); // 找續存入零錢
+        break;
       case 'income': add(tx.account, tx.amount); break;
       case 'transfer': add(tx.from, -tx.amount); add(tx.to, tx.amount); break;
       case 'adjust': add(tx.account, tx.target - (bal[tx.account] || 0)); break;
@@ -143,7 +158,7 @@
     return d;
   }
   function involves(tx, acc) {
-    if (tx.type === 'expense') return tx.account === acc || (acc === 'change' && tx.change > 0);
+    if (tx.type === 'expense') return tx.account === acc || (acc === 'change' && (tx.change > 0 || tx.back > 0));
     if (tx.type === 'transfer') return tx.from === acc || tx.to === acc;
     return tx.account === acc;
   }
@@ -302,10 +317,13 @@
     switch (tx.type) {
       case 'expense': {
         const total = tx.amount + (tx.change || 0);
+        const back = tx.back || 0;
         let s = '「' + tx.item + '」支出 ' + fmt(total) + '，';
-        if (tx.change > 0 && tx.amount > 0) s += NAME[tx.account] + ' ' + fmt(tx.amount) + ' ＋ 零錢 ' + fmt(tx.change);
+        if (tx.change > 0 && tx.amount > 0) s += NAME[tx.account] + ' ' + fmt(tx.amount + back) + ' ＋ 零錢 ' + fmt(tx.change);
         else if (tx.change > 0) s += '零錢支付';
+        else if (back) s += NAME[tx.account] + '付 ' + fmt(tx.amount + back);
         else s += NAME[tx.account] + '支付';
+        if (back) s += '，找續 ' + fmt(back) + ' 存入零錢';
         return s;
       }
       case 'income': return NAME[tx.account] + '收入 ' + fmt(tx.amount);
@@ -319,6 +337,7 @@
     ACCOUNTS, ACC_IDS, NAME, ACC, BUILTIN, PALETTE, setAccounts, payable, active, isOff,
     DEFAULT_INITIAL, DEFAULT_QUICK, DEFAULT_SHORTCUTS, NO_OVERDRAFT, TYPE_NAME,
     CURRENCIES, setCurrency, cur,
+    cashBack, NOTE_UNIT,
     defaultState, toCents, fmt, plain, shortNum, dayKey, monthKey, startOfDay, fmtTime, fmtDateTime,
     txTotal, deltas, involves, cmpTx, compute, stats, parse, normalize, describe, initialBalances,
   };
