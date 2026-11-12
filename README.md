@@ -65,6 +65,7 @@ After changing files, bump `VERSION` in `sw.js` so installed apps pick up the up
 | `i18n.js` | Simplified Chinese and English translations |
 | `sw.js` | Service worker (offline support) |
 | `manifest.webmanifest`, `icons/` | Home Screen name and icons |
+| `AGENTS.md` | Maintainer guide for developers and AI assistants (in Chinese) |
 
 ### Privacy
 
@@ -117,6 +118,8 @@ No accounts, no analytics, no tracking, no server. Everything is saved in your b
 - **本機測試**：執行 `python -m http.server 8765`，再打開 <http://localhost:8765>。
 
 修改檔案後，請把 `sw.js` 裡的 `VERSION` 加一，已安裝的 App 才會載入新版本。
+
+要請其他開發者或 AI 協助維護，請先讓對方閱讀 [AGENTS.md](AGENTS.md)（架構、資料模型、記賬規則、測試及部署方法）。
 
 ### 私隱
 
