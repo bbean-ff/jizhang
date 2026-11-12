@@ -119,8 +119,10 @@
     return true;
   }
   // 港幣找續：現金支出以整十元支付，找續存入零錢（只在建立新交易時計算，舊紀錄不受影響）
+  // 整十元找續只適用於港幣／澳門幣；使用其他貨幣時不生效（設定會保留，轉回港幣後自動恢復）
+  const backCurrency = () => ['HKD', 'MOP'].includes(state.settings.currency);
   function withBack(tx) {
-    if (tx.type === 'expense' && tx.account === 'cash' && state.settings.autoBack && tx.back === undefined) {
+    if (tx.type === 'expense' && tx.account === 'cash' && state.settings.autoBack && backCurrency() && tx.back === undefined) {
       const b = C.cashBack(tx.amount);
       if (b) return { ...tx, back: b };
     }
@@ -1047,7 +1049,7 @@
       '</div></div>' +
       '<div class="set-section"><h3>記賬</h3><div class="card">' +
       '<div class="set-row"><span class="sr-l">金額輸入模式<div class="sr-d">累加：20+10+5=35；直接設定：按 20 即 20</div></span><div class="seg" id="set-mode"><button data-mode="add" class="' + (s.inputMode === 'add' ? 'on' : '') + '">累加</button><button data-mode="set" class="' + (s.inputMode === 'set' ? 'on' : '') + '">直接設定</button></div></div>' +
-      '<div class="set-row"><span class="sr-l">現金自動找續（港幣）<div class="sr-d">現金以整十元支付，例如買 $82 當作付 $90，找續 $8 存入零錢。要用零錢付款，請輸入「80+2」。</div></span><label class="switch"><input type="checkbox" id="set-back"' + (s.autoBack ? ' checked' : '') + '><span></span></label></div>' +
+      '<div class="set-row"><span class="sr-l">現金自動找續（港幣）<div class="sr-d">現金以整十元支付，例如買 $82 當作付 $90，找續 $8 存入零錢。要用零錢付款，請輸入「80+2」。' + (backCurrency() ? '' : '<br><b>只適用於港幣及澳門幣，目前的貨幣不會找續。</b>') + '</div></span><label class="switch"><input type="checkbox" id="set-back"' + (s.autoBack && backCurrency() ? ' checked' : '') + (backCurrency() ? '' : ' disabled') + '><span></span></label></div>' +
       '<div class="set-row"><span class="sr-l">記賬後重設為「現金支出」<div class="sr-d">關閉後會保留 A／收入模式</div></span><label class="switch"><input type="checkbox" id="set-reset"' + (s.resetAfter ? ' checked' : '') + '><span></span></label></div>' +
       '</div></div>' +
       '<div class="set-section"><h3>外觀</h3><div class="card"><div class="set-row"><span>深色／淺色模式</span><div class="seg" id="set-theme">' +
@@ -1142,11 +1144,8 @@
     else if (el.id === 'set-back') { state.settings.autoBack = el.checked; save(); toast(el.checked ? '已開啟現金自動找續' : '已關閉現金自動找續'); }
     else if (el.id === 'set-cur') {
       state.settings.currency = el.value;
-      // 整十元找續只適用於港幣／澳門幣，改用其他貨幣時自動關閉（可在設定重新開啟）
-      const backOff = state.settings.autoBack && !['HKD', 'MOP'].includes(el.value);
-      if (backOff) state.settings.autoBack = false;
       save(); applyEnv(); quickSig = ''; refresh();
-      toast(backOff ? '已更改貨幣符號，並已關閉現金自動找續' : '已更改貨幣符號');
+      toast(state.settings.autoBack && !backCurrency() ? '已更改貨幣符號，現金自動找續不適用於此貨幣' : '已更改貨幣符號');
     }
     else if (el.id === 'set-scdirect') { state.settings.shortcutDirect = el.checked; save(); }
     else if (el.id === 'im-file') { importFile(el.files[0]); el.value = ''; }
