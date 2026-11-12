@@ -140,8 +140,14 @@
   function undo() {
     const u = undoStack.pop();
     if (!u) { toast('沒有可撤銷的操作'); return; }
-    state.txs = u.txs;
-    state.initial = u.initial;
+    if (u.state) { // 匯入備份：整份資料還原
+      state = u.state;
+      applyEnv(); applyTheme(); quickSig = '';
+    } else {
+      state.txs = u.txs;
+      // 保留快照之後才新增的帳戶的初始餘額
+      state.initial = { ...state.initial, ...u.initial };
+    }
     save();
     refresh();
     toast('已撤銷：' + u.label.replace(/^已/, ''));
@@ -733,6 +739,8 @@
           let time = fromLocalInput(f.time.value);
           if (Number.isNaN(time)) { alert('請輸入日期時間'); return; }
           if (r && f.time.value === toLocalInput(t.time)) time = t.time; // 未改時間則保留原始秒數
+          // 新交易：沒有改時間（或選了現在這一分鐘）則用現在的準確時間，避免排在同一分鐘內較早的交易之前
+          else if (!r && (f.time.value === toLocalInput(t.time) || f.time.value === toLocalInput(Date.now()))) time = Date.now();
           const base = { type, time, item: f.item.value.trim(), note: f.note.value.trim() };
           const amt = name => { const s = f[name].value.trim(); return s === '' ? 0 : C.toCents(s); };
           let tx;
@@ -1132,7 +1140,14 @@
       qa[+el.dataset.qi] = v; setQuick(qa); toast('已更新快捷金額');
     } else if (el.id === 'set-reset') { state.settings.resetAfter = el.checked; save(); }
     else if (el.id === 'set-back') { state.settings.autoBack = el.checked; save(); toast(el.checked ? '已開啟現金自動找續' : '已關閉現金自動找續'); }
-    else if (el.id === 'set-cur') { state.settings.currency = el.value; save(); applyEnv(); quickSig = ''; refresh(); toast('已更改貨幣符號'); }
+    else if (el.id === 'set-cur') {
+      state.settings.currency = el.value;
+      // 整十元找續只適用於港幣／澳門幣，改用其他貨幣時自動關閉（可在設定重新開啟）
+      const backOff = state.settings.autoBack && !['HKD', 'MOP'].includes(el.value);
+      if (backOff) state.settings.autoBack = false;
+      save(); applyEnv(); quickSig = ''; refresh();
+      toast(backOff ? '已更改貨幣符號，並已關閉現金自動找續' : '已更改貨幣符號');
+    }
     else if (el.id === 'set-scdirect') { state.settings.shortcutDirect = el.checked; save(); }
     else if (el.id === 'im-file') { importFile(el.files[0]); el.value = ''; }
   });
@@ -1182,8 +1197,10 @@
           e.preventDefault();
           const name = f.name.value.trim();
           if (!name) { f.name.focus(); return; }
-          const reserved = ['A', 'a', '支付寶', 'Alipay', '現金', '零錢', '零錢筒'];
-          const clash = reserved.includes(name) || C.ACCOUNTS.some(x => x.id !== (a && a.id) && (x.name === name || x.short === name));
+          // 文字輸入不分大小寫，因此查重亦不分大小寫
+          const reserved = ['a', '支付寶', 'alipay', '現金', 'cash', '零錢', 'change', '零錢筒', 'jar'];
+          const lname = name.toLowerCase();
+          const clash = reserved.includes(lname) || C.ACCOUNTS.some(x => x.id !== (a && a.id) && (x.name.toLowerCase() === lname || x.short.toLowerCase() === lname));
           if (clash) { alert('已有同名的付款方式，請用其他名稱。'); return; }
           if (a) {
             Object.assign(a, { name, kind, color });
@@ -1228,6 +1245,8 @@
     if (used) { alert('「' + a.name + '」已有 ' + used + ' 筆交易紀錄，不能刪除。\n如不再使用，可以先把相關交易刪除或改用其他帳戶。'); return; }
     const b = state.initial[id] || 0;
     if (!confirm('刪除付款方式「' + a.name + '」？' + (b ? '\n它目前的金額 ' + fmt(b) + ' 會從總資產中移除。' : ''))) return;
+    // 撤銷紀錄內若仍有用到此帳戶的交易，撤銷後會引用不存在的帳戶，因此清空撤銷紀錄
+    if (undoStack.some(u => (u.state ? u.state.txs : u.txs).some(t => C.involves(t, id)))) undoStack.length = 0;
     state.accounts = state.accounts.filter(x => x.id !== id);
     delete state.initial[id];
     state.settings.shortcuts.forEach(sc => { if (sc.account === id) sc.account = 'cash'; });
@@ -1305,10 +1324,11 @@
       if (!okTx) { alert('備份檔內的交易資料格式不正確。'); return; }
       const ns = migrate(d);
       delete ns.app; delete ns.exportedAt;
+      ns.settings.lang = state.settings.lang; // 介面語言屬於本機偏好，不隨備份改變
       const r = C.compute(ns);
       if (!confirm('匯入後將以備份檔取代目前所有資料。\n\n備份：' + ns.txs.length + ' 筆交易，總資產 ' + fmt(r.total) + '\n目前：' + state.txs.length + ' 筆交易，總資產 ' + fmt(comp.total) + '\n\n確定匯入？')) return;
       try { localStorage.setItem(KEY + '.before-import', JSON.stringify(state)); } catch (_) { /* ignore */ }
-      undoStack.push({ txs: state.txs, initial: { ...state.initial }, label: '已匯入備份' });
+      undoStack.push({ state, label: '已匯入備份' });
       state = ns;
       applyEnv();
       save(); applyTheme(); quickSig = ''; refresh();
@@ -1329,7 +1349,7 @@
     navigator.storage.persisted().then(p => p || navigator.storage.persist()).then(p => { renderSettings.persisted = p; if (view === 'settings') renderSettings(); }).catch(() => {});
   }
   // 其他分頁修改資料時同步
-  window.addEventListener('storage', e => { if (e.key === KEY) { state = load(); applyEnv(); quickSig = ''; refresh(); } });
+  window.addEventListener('storage', e => { if (e.key === KEY) { undoStack.length = 0; state = load(); applyEnv(); quickSig = ''; refresh(); } });
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW', err));
   }

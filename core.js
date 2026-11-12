@@ -247,6 +247,7 @@
       .replace(/[！-～]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)) // 全形轉半形
       .replace(/　/g, ' ')
       .replace(/(HK|MOP|US|NT|S)\$|JP¥|\$|¥|€|£|₩/gi, '')
+      .replace(/(\d),(?=\d{3}(?!\d))/g, '$1') // 千位分隔符：1,000 → 1000
       .replace(/(\d)\s*(元|蚊|塊)/g, '$1')
       .replace(/\s+/g, ' ')
       .trim();
@@ -273,7 +274,9 @@
     let m;
     if ((m = s.match(RE_ADJUST)) && tokenToAcc(m[1])) {
       const account = tokenToAcc(m[1]);
-      return { ok: true, tx: { type: 'adjust', account, target: toCents(m[2]), item: '餘額調整' } };
+      // 信用卡：輸入的是欠款（正數），內部以負數保存，與「調整帳戶餘額」畫面一致
+      const v = toCents(m[2]);
+      return { ok: true, tx: { type: 'adjust', account, target: ACC[account].kind === 'credit' ? -v : v, item: '餘額調整' } };
     }
     if ((m = s.match(RE_INCOME))) {
       const account = m[1] === '' ? 'cash' : tokenToAcc(m[1]);
@@ -291,12 +294,18 @@
     }
     if ((m = s.match(RE_EXPENSE))) {
       let item = m[1].trim();
-      let account = m[2] ? 'alipay' : 'cash';
+      // Alipay 已停用時，結尾的 A 視為項目名稱的一部分（例如「維他命A30」）
+      const viaA = !!m[2] && !isOff('alipay');
+      if (m[2] && !viaA) item += 'A';
+      let account = viaA ? 'alipay' : 'cash';
       let amount = toCents(m[3]);
       let change = m[4] ? toCents(m[4]) : 0;
+      if (/[-−]$/.test(item)) return { ok: false, error: '金額不可為負數' };
+      if (/\d\.$/.test(item)) return { ok: false, error: '金額最多兩位小數' };
+      if (/^[\d\s.,+]*$/.test(item)) return { ok: false, error: '請加上項目名稱，例如「早餐25」' };
       if (tokenToAcc(item)) return { ok: false, error: '收入請輸入「' + item + '+金額」，例如 現金+350' };
       // 「早餐八達通25」：項目後面接付款方式名稱
-      if (!m[2]) {
+      if (!viaA) {
         const names = ACCOUNTS.filter(a => a.id !== 'jar' && !a.off).map(a => [a.id, a.builtin ? (a.id === 'alipay' ? '支付寶' : a.name) : a.name])
           .sort((x, y) => y[1].length - x[1].length);
         for (const [id, nm] of names) {
