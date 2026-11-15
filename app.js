@@ -88,19 +88,28 @@
   }
 
   /* 檢查透支：零錢 / 零錢筒 絕不可透支；現金 / Alipay 不足時要求確認 */
-  function validate(newTxs, focusId) {
-    const existing = new Set(comp.problems.filter(p => p.hard).map(p => p.tx.id + p.account));
-    const r = C.compute({ ...state, txs: newTxs });
-    const hard = r.problems.filter(p => p.hard && !existing.has(p.tx.id + p.account));
+  /* 比較改動前後的透支情況：只要改動令任何一筆交易（包括之後的交易）出現新的透支，
+   * 或令原有的透支更嚴重，就會提醒。因此刪除或改小舊收入、修改初始餘額亦會被檢查。 */
+  function validate(newTxs, focusId, newInitial) {
+    const before = {};
+    for (const p of comp.problems) before[p.tx.id + '|' + p.account] = p.balance;
+    const r = C.compute({ ...state, txs: newTxs, initial: newInitial || state.initial });
+    const fresh = r.problems.filter(p => { const k = p.tx.id + '|' + p.account; return !(k in before) || p.balance < before[k] || p.tx.id === focusId; });
+    const what = p => '「' + (p.tx.item || C.TYPE_NAME[p.tx.type]) + '」（' + C.fmtDateTime(p.tx.time) + '）';
+    const hard = fresh.filter(p => p.hard);
     if (hard.length) {
       const p = hard[0];
-      alert(NAME[p.account] + '不足，不可透支。\n\n處理「' + (p.tx.item || C.TYPE_NAME[p.tx.type]) + '」後，' + NAME[p.account] + '會變成 ' + fmt(p.balance) + '。');
+      alert(NAME[p.account] + '不足，不可透支。\n\n處理' + what(p) + '後，' + NAME[p.account] + '會變成 ' + fmt(p.balance) + '。');
       return false;
     }
-    const soft = r.problems.filter(p => !p.hard && p.tx.id === focusId);
+    const soft = fresh.filter(p => !p.hard);
     if (soft.length) {
       const p = soft[0];
-      if (!confirm(NAME[p.account] + '餘額不足，記賬後會變成 ' + fmt(p.balance) + '。\n仍要繼續嗎？')) return false;
+      const more = soft.length > 1 ? '\n（另有 ' + (soft.length - 1) + ' 筆交易亦會出現餘額不足）' : '';
+      const msg = p.tx.id === focusId
+        ? NAME[p.account] + '餘額不足，記賬後會變成 ' + fmt(p.balance) + '。'
+        : '這項改動會令之後的交易' + what(p) + '出現餘額不足：' + NAME[p.account] + '會變成 ' + fmt(p.balance) + '。';
+      if (!confirm(msg + more + '\n仍要繼續嗎？')) return false;
     }
     return true;
   }
@@ -728,8 +737,12 @@
         const f = body.querySelector('#ed');
         const showGroups = () => body.querySelectorAll('[data-g]').forEach(el => { el.hidden = !el.dataset.g.split(' ').includes(f.type.value); });
         f.type.addEventListener('change', showGroups); showGroups();
-        // 改金額或付款帳戶時，自動重新計算找續
+        // 改金額或付款帳戶時，自動重新計算找續。
+        // 非現金一律沒有找續；現金只在找續目前適用（港幣／澳門幣且已開啟）時才重新計算，
+        // 否則保留原有找續金額，不會因改用其他貨幣而清除舊紀錄。
         const autoBack = () => {
+          if (f.eacc.value !== 'cash') { f.eback.value = ''; return; }
+          if (!(state.settings.autoBack && backCurrency())) return;
           const a = C.toCents(f.eamt.value.trim() || '0');
           const b = Number.isNaN(a) ? 0 : (withBack({ type: 'expense', account: f.eacc.value, amount: a }).back || 0);
           f.eback.value = b ? C.plain(b) : '';
@@ -1262,8 +1275,7 @@
         e.preventDefault();
         const f = e.target, ni = {};
         for (const id of C.ACC_IDS) { if (!f[id]) { ni[id] = state.initial[id] || 0; continue; } const v = sCents(f[id].value); if (Number.isNaN(v)) { alert(NAME[id] + '金額格式不正確'); return; } ni[id] = C.ACC[id].kind === 'credit' ? -v : v; }
-        const r = C.compute({ ...state, initial: ni });
-        if (r.problems.some(p => p.hard)) { alert('這樣設定會令零錢或零錢筒出現負數，請檢查。'); return; }
+        if (!validate(state.txs, null, ni)) return;
         commit(state.txs, '已修改初始餘額', () => { state.initial = ni; });
         closeSheet();
       }));
